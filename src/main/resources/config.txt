@@ -1,0 +1,26 @@
+[TRUCKS]
+1, 1000
+2, 2000
+3, 1500
+4, 1800
+5, 2500
+
+[CARGOS]
+1, food, 300, chemicals
+2, electronics, 200,
+3, clothes, 150,
+4, chemicals, 400, food
+5, books, 250,
+6, toys, 180,
+7, furniture, 500,
+8, tools, 350,
+9, food, 280, chemicals
+10, electronics, 220,
+11, building_materials, 600,
+12, medicine, 120, chemicals
+13, paper, 200,
+14, glass, 350, food
+15, metal, 450,
+
+[SETTINGS]
+idealLoadPercentage = 50
