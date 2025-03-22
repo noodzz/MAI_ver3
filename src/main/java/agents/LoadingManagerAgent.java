@@ -21,6 +21,7 @@ public class LoadingManagerAgent extends Agent {
     private Map<Integer, Boolean> impossibleCargos = new HashMap<>();
     private Map<String, Truck> finalTrucks = new HashMap<>();
     private boolean reportGenerated = false; // Флаг для отслеживания генерации отчета
+    private boolean feasibilityCheckLogged = false; // Флаг для предотвращения повторных логов
 
     @Override
     protected void setup() {
@@ -61,8 +62,6 @@ public class LoadingManagerAgent extends Agent {
 
                 if (msg != null) {
                     String content = msg.getContent();
-                    System.out.println("Received message: " + content + " from " + msg.getSender().getLocalName());
-
                     if (content.equals("REQUEST_CARGO")) {
                         // Send available cargo to the truck
                         ACLMessage reply = msg.createReply();
@@ -128,14 +127,19 @@ public class LoadingManagerAgent extends Agent {
                         myAgent.send(reply);
                     } else if (content.equals("TRUCK_READY")) {
                         // Mark truck as ready
-                        truckReadyStatus.put(msg.getSender(), true);
-                        readyTrucks++;
-                        System.out.println("Truck " + msg.getSender().getLocalName() + " is ready. Total ready: " + readyTrucks + "/" + config.getTrucks().size());
+                        AID sender = msg.getSender();
+                        // Избегаем повторных сообщений при повторной отправке TRUCK_READY
+                        if (!truckReadyStatus.containsKey(sender) || !truckReadyStatus.get(sender)) {
+                            truckReadyStatus.put(sender, true);
+                            readyTrucks++;
+                            System.out.println("Truck " + sender.getLocalName() + " is ready. Total ready: " +
+                                    readyTrucks + "/" + config.getTrucks().size());
 
-                        // Check if all trucks are ready
-                        if (readyTrucks == config.getTrucks().size() && !reportGenerated) {
-                            // All trucks are ready, request reports
-                            requestTruckReports();
+                            // Check if all trucks are ready
+                            if (readyTrucks == config.getTrucks().size() && !reportGenerated) {
+                                // All trucks are ready, request reports
+                                requestTruckReports();
+                            }
                         }
                     }
                 } else {
@@ -146,13 +150,21 @@ public class LoadingManagerAgent extends Agent {
 
         addBehaviour(new TickerBehaviour(this, 10000) { // Проверка каждые 10 секунд
             protected void onTick() {
+                int previousImpossibleCount = impossibleCargos.size();
                 checkCargoFeasibility();
-                System.out.println("[Менеджер] Проверка завершена. Невозможных грузов: " + impossibleCargos.size());
+
+                // Логируем результаты только если что-то изменилось
+                int newImpossibleCount = impossibleCargos.size();
+                if (newImpossibleCount > previousImpossibleCount) {
+                    System.out.println("[Менеджер] Невозможных грузов: " + newImpossibleCount +
+                            ", доступных: " + availableCargos.size());
+                }
             }
         });
     }
 
     private void checkCargoFeasibility() {
+        int removedCount = 0;
         synchronized (availableCargos) {
             Iterator<Cargo> it = availableCargos.iterator();
             while (it.hasNext()) {
@@ -170,9 +182,14 @@ public class LoadingManagerAgent extends Agent {
                 if (!canBeLoaded) {
                     impossibleCargos.put(cargo.getId(), true);
                     it.remove();
-                    System.out.println("[Менеджер] Груз " + cargo.getId() + " удален как невозможный");
+                    removedCount++;
                 }
             }
+        }
+
+        // Выводим информацию только если удалены грузы
+        if (removedCount > 0) {
+            System.out.println("[Менеджер] Удалено невозможных грузов: " + removedCount);
         }
     }
 
@@ -187,7 +204,6 @@ public class LoadingManagerAgent extends Agent {
         ACLMessage statusRequest = new ACLMessage(ACLMessage.REQUEST);
         for (AID aid : truckReadyStatus.keySet()) {
             statusRequest.addReceiver(aid);
-            System.out.println("Sending report request to: " + aid.getLocalName());
         }
         statusRequest.setContent("REPORT_STATUS");
         send(statusRequest);
@@ -282,9 +298,6 @@ public class LoadingManagerAgent extends Agent {
 
                 totalCapacity += truck.getCapacity();
                 totalLoad += truck.getCurrentLoad();
-
-                System.out.println("Added truck to report: " + truckName + " (Load: " + truck.getCurrentLoad() +
-                        "/" + truck.getCapacity() + ")");
             }
 
             writer.println("SUMMARY");

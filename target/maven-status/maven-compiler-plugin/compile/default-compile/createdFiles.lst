@@ -1,7 +1,10 @@
+agents\TruckAgent$15.class
 agents\TruckAgent$10.class
+agents\TruckAgent$7$1.class
 agents\TruckAgent$3.class
 agents\LoadingManagerAgent$6.class
 agents\TruckAgent$7.class
+agents\TruckAgent$13.class
 agents\LoadingManagerAgent$2.class
 util\NetworkHelper.class
 agents\TruckAgent$2.class
@@ -19,9 +22,11 @@ client\ClientMain.class
 agents\TruckAgent$6.class
 agents\LoadingManagerAgent$3.class
 agents\TruckAgent.class
+agents\TruckAgent$14.class
 agents\TruckAgent$12.class
 model\Truck.class
 agents\LoadingManagerAgent$1.class
+agents\TruckAgent$7$1$1.class
 agents\TruckAgent$9.class
 agents\TruckAgent$1.class
 agents\LoadingManagerAgent$4.class

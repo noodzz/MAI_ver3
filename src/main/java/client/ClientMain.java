@@ -53,9 +53,12 @@ public class ClientMain {
 
             // Создание агентов-грузовиков на клиенте
             List<AID> allTruckAIDs = new ArrayList<>();
+            // In ClientMain.java, make sure AIDs are created with full information:
             for (Truck truck : config.getTrucks()) {
                 String agentName = "truck-" + truck.getId();
-                allTruckAIDs.add(new AID(agentName, AID.ISGUID));
+                AID aid = new AID(agentName, AID.ISLOCALNAME);
+                aid.addAddresses("http://" + serverIP + ":7778/acc");
+                allTruckAIDs.add(aid);
             }
 
             // Создание агентов-грузовиков на клиенте

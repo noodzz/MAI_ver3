@@ -10,6 +10,7 @@ public class Truck implements Serializable {
     private List<Cargo> loadedCargos;
     private Set<String> loadedCargoTypes;
     private Set<String> incompatibleCargoTypes = new HashSet<>(); // Типы грузов, которые нельзя перевозить
+    private Map<String, Set<String>> typeIncompatibilityMap = new HashMap<>();
 
 
     public Truck(int id, float capacity) {
@@ -65,13 +66,22 @@ public class Truck implements Serializable {
         if (canAddCargo(cargo)) {
             loadedCargos.add(cargo);
             loadedCargoTypes.add(cargo.getType());
+
+            // Регистрируем несовместимые типы
+            for (String incompatibleType : cargo.getIncompatibleTypes()) {
+                registerTypeIncompatibility(cargo.getType(), incompatibleType);
+            }
+
             System.out.println("[DEBUG] Груз " + cargo.getId() + " добавлен в грузовик " + getId());
         } else {
             System.out.println("[DEBUG] Груз " + cargo.getId() + " не добавлен в грузовик " + getId());
         }
     }
 
-
+    public void registerTypeIncompatibility(String type, String incompatibleType) {
+        typeIncompatibilityMap.computeIfAbsent(type, k -> new HashSet<>()).add(incompatibleType);
+        typeIncompatibilityMap.computeIfAbsent(incompatibleType, k -> new HashSet<>()).add(type);
+    }
     public float getCurrentLoad() {
         float total = 0;
         for (Cargo cargo : loadedCargos) {
@@ -80,7 +90,36 @@ public class Truck implements Serializable {
         System.out.println("[DEBUG] Текущая загрузка грузовика " + id + ": " + total); // Логирование
         return total;
     }
+    /**
+     * Проверяет совместимость переданных типов грузов с текущими грузами в грузовике
+     * @param cargoTypes массив строк с типами грузов для проверки
+     * @return true, если все типы совместимы, false в противном случае
+     */
+    public boolean areCargoTypesCompatible(String[] cargoTypes) {
+        // Если нет типов для проверки, считаем совместимыми
+        if (cargoTypes == null || cargoTypes.length == 0) {
+            return true;
+        }
 
+        // Если нет загруженных грузов, любые типы совместимы
+        if (loadedCargoTypes.isEmpty()) {
+            return true;
+        }
+
+        // Проверяем каждый переданный тип на совместимость
+        for (String newType : cargoTypes) {
+            if (newType == null || newType.isEmpty()) continue;
+
+            // Проверяем совместимость с уже загруженными типами
+            for (String loadedType : loadedCargoTypes) {
+                // Этот простой подход проверяет только несовместимые типы грузовика
+                if (incompatibleCargoTypes.contains(newType)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
     public float getLoadPercentage() {
         return (getCurrentLoad() / capacity) * 100;
     }
@@ -95,6 +134,7 @@ public class Truck implements Serializable {
             loadedCargoTypes.add(c.getType());
         }
     }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -110,4 +150,5 @@ public class Truck implements Serializable {
 
         return sb.toString();
     }
+
 }

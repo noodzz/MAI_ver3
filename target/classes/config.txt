@@ -20,7 +20,6 @@
 12, medicine, 120, chemicals
 13, paper, 200,
 14, glass, 350, food
-15, metal, 450,
 
 [SETTINGS]
 idealLoadPercentage = 50
