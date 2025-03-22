@@ -17,7 +17,7 @@ public class ServerMain {
     public static void main(String[] args) {
         try {
             // Чтение конфигурации из файла
-            LoadingConfiguration config = readConfiguration("C:\\Users\\silez\\IdeaProjects\\MAI_ver3\\src\\main\\resources\\config.txt");
+            LoadingConfiguration config = readConfiguration("config.txt");
             if (config == null || config.getTrucks() == null || config.getCargos() == null) {
                 System.out.println("Ошибка: Конфигурация не загружена!");
                 return;
@@ -99,7 +99,8 @@ public class ServerMain {
         List<Cargo> cargos = new ArrayList<>();
         float idealLoadPercentage = 50.0f;
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+        try (InputStream inputStream = ServerMain.class.getClassLoader().getResourceAsStream(filename);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
             String line;
             String section = "";
 

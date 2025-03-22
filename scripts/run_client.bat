@@ -5,5 +5,5 @@ if "%1"=="" (
     pause
     exit /b
 )
-java -jar C:\Users\silez\IdeaProjects\MAI_ver3\target\truck-loading-client.jar %1
+java -jar "..\target\truck-loading-client.jar" %1
 pause
