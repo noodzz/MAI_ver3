@@ -87,7 +87,6 @@ public class Truck implements Serializable {
         for (Cargo cargo : loadedCargos) {
             total += cargo.getWeight();
         }
-        System.out.println("[DEBUG] Текущая загрузка грузовика " + id + ": " + total); // Логирование
         return total;
     }
     /**

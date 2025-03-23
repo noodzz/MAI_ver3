@@ -2,7 +2,9 @@ agents\TruckAgent$15.class
 agents\TruckAgent$10.class
 agents\TruckAgent$7$1.class
 agents\TruckAgent$3.class
+agents\TruckAgent$17.class
 agents\LoadingManagerAgent$6.class
+agents\TruckAgent$15$1.class
 agents\TruckAgent$7.class
 agents\TruckAgent$13.class
 agents\LoadingManagerAgent$2.class
@@ -12,6 +14,7 @@ agents\TruckAgent$8.class
 model\Cargo.class
 model\LoadingConfiguration.class
 client\ClientStartup.class
+agents\TruckAgent$16.class
 agents\TruckAgent$11.class
 agents\TruckAgent$5.class
 server\ServerMain.class
@@ -24,6 +27,7 @@ agents\LoadingManagerAgent$3.class
 agents\TruckAgent.class
 agents\TruckAgent$14.class
 agents\TruckAgent$12.class
+util\LogManager.class
 model\Truck.class
 agents\LoadingManagerAgent$1.class
 agents\TruckAgent$7$1$1.class

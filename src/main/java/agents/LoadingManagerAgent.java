@@ -41,7 +41,7 @@ public class LoadingManagerAgent extends Agent {
             return;
         }
 
-        addBehaviour(new WakerBehaviour(this, 60000) { // 60 second timeout
+        addBehaviour(new WakerBehaviour(this, 360000) { // 60 second timeout
             protected void onWake() {
                 System.out.println("Master timeout reached. Finalizing all operations...");
                 if (!reportGenerated) {
