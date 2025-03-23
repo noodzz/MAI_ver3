@@ -7,6 +7,7 @@ import jade.wrapper.AgentContainer;
 import jade.wrapper.AgentController;
 import jade.wrapper.StaleProxyException;
 import model.Cargo;
+import model.CargoPool;
 import model.LoadingConfiguration;
 import model.Truck;
 
@@ -50,7 +51,9 @@ public class ServerMain {
                     "agents.LoadingManagerAgent",
                     new Object[]{config});
             managerAgent.start();
-
+            CargoPool cargoPool = CargoPool.getInstance();
+            cargoPool.initializePool(config.getCargos());
+            System.out.println("Пул грузов инициализирован с " + config.getCargos().size() + " грузами");
             // Создание первой группы агентов-грузовиков на сервере
             // (предполагается, что половину грузовиков запускаем на сервере)
             int trucksOnServer = 0;
@@ -86,6 +89,7 @@ public class ServerMain {
         // Сохраняем только нужные клиенту грузовики
         LoadingConfiguration clientConfig = new LoadingConfiguration();
         clientConfig.setTrucks(clientTrucks);
+        clientConfig.setCargos(config.getCargos());
         clientConfig.setIdealLoadPercentage(config.getIdealLoadPercentage());
 
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("client_config.dat"))) {

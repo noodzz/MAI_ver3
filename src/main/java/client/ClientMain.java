@@ -6,6 +6,7 @@ import jade.core.Runtime;
 import jade.wrapper.AgentContainer;
 import jade.wrapper.AgentController;
 import jade.wrapper.StaleProxyException;
+import model.CargoPool;
 import model.LoadingConfiguration;
 import model.Truck;
 import jade.core.AID;
@@ -50,7 +51,12 @@ public class ClientMain {
             // Создание периферийного контейнера
             System.out.println("Создание периферийного контейнера...");
             AgentContainer container = rt.createAgentContainer(profile);
-
+            // После загрузки конфигурации
+            CargoPool cargoPool = CargoPool.getInstance();
+            if (cargoPool.getAvailableCargos().isEmpty()) {
+                cargoPool.initializePool(config.getCargos());
+                System.out.println("Клиент: пул грузов инициализирован с " + config.getCargos().size() + " грузами");
+            }
             // Создание агентов-грузовиков на клиенте
             List<AID> allTruckAIDs = new ArrayList<>();
             // In ClientMain.java, make sure AIDs are created with full information:

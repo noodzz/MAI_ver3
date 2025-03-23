@@ -1,55 +1,55 @@
 TRUCK LOADING REPORT
 ===================
 
-Report generated at: Sun Mar 23 21:25:41 YEKT 2025
+Report generated at: Mon Mar 24 00:25:04 YEKT 2025
 
 Truck ID: 1
 Capacity: 1000.0
-Current Load: 600.0 (60.000004%)
-Loaded Cargo Types: [building_materials]
+Current Load: 650.0 (65.0%)
+Loaded Cargo Types: [tools, food]
 Cargos: 
-  - Cargo 11 (Type: building_materials, Weight: 600.0)
+  - Cargo 1 (Type: food, Weight: 300.0)
+  - Cargo 8 (Type: tools, Weight: 350.0)
 
 ------------------
 Truck ID: 2
 Capacity: 2000.0
-Current Load: 1010.0 (50.5%)
-Loaded Cargo Types: [food, books, toys]
+Current Load: 870.0 (43.5%)
+Loaded Cargo Types: [books, furniture, medicine]
 Cargos: 
-  - Cargo 1 (Type: food, Weight: 300.0)
   - Cargo 5 (Type: books, Weight: 250.0)
-  - Cargo 6 (Type: toys, Weight: 180.0)
-  - Cargo 9 (Type: food, Weight: 280.0)
+  - Cargo 7 (Type: furniture, Weight: 500.0)
+  - Cargo 12 (Type: medicine, Weight: 120.0)
 
 ------------------
 Truck ID: 3
 Capacity: 1500.0
-Current Load: 750.0 (50.0%)
-Loaded Cargo Types: [chemicals, electronics, clothes]
+Current Load: 780.0 (52.0%)
+Loaded Cargo Types: [building_materials, toys]
 Cargos: 
-  - Cargo 2 (Type: electronics, Weight: 200.0)
-  - Cargo 3 (Type: clothes, Weight: 150.0)
-  - Cargo 4 (Type: chemicals, Weight: 400.0)
+  - Cargo 6 (Type: toys, Weight: 180.0)
+  - Cargo 11 (Type: building_materials, Weight: 600.0)
 
 ------------------
 Truck ID: 4
 Capacity: 1800.0
-Current Load: 720.0 (40.0%)
-Loaded Cargo Types: [furniture, electronics]
+Current Load: 630.0 (35.0%)
+Loaded Cargo Types: [electronics, clothes, food]
 Cargos: 
-  - Cargo 7 (Type: furniture, Weight: 500.0)
-  - Cargo 10 (Type: electronics, Weight: 220.0)
+  - Cargo 3 (Type: clothes, Weight: 150.0)
+  - Cargo 9 (Type: food, Weight: 280.0)
+  - Cargo 2 (Type: electronics, Weight: 200.0)
 
 ------------------
 Truck ID: 5
 Capacity: 2500.0
-Current Load: 1020.0 (40.8%)
-Loaded Cargo Types: [glass, medicine, paper, tools]
+Current Load: 1170.0 (46.8%)
+Loaded Cargo Types: [electronics, glass, paper, chemicals]
 Cargos: 
-  - Cargo 8 (Type: tools, Weight: 350.0)
+  - Cargo 4 (Type: chemicals, Weight: 400.0)
+  - Cargo 10 (Type: electronics, Weight: 220.0)
   - Cargo 14 (Type: glass, Weight: 350.0)
   - Cargo 13 (Type: paper, Weight: 200.0)
-  - Cargo 12 (Type: medicine, Weight: 120.0)
 
 ------------------
 SUMMARY
@@ -60,5 +60,6 @@ Total load: 4100.0
 Overall loading percentage: 46,59%
 Ideal loading percentage: 50.0%
 
+Total processed cargos: 14
 Impossible cargos count: 0
 Remaining cargos: 0

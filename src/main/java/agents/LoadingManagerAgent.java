@@ -7,8 +7,10 @@ import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
 import model.Cargo;
+import model.CargoPool;
 import model.LoadingConfiguration;
 import model.Truck;
+import util.LogHelper;
 
 import java.io.*;
 import java.util.*;
@@ -19,9 +21,49 @@ public class LoadingManagerAgent extends Agent {
     private Map<AID, Boolean> truckReadyStatus;
     private int readyTrucks = 0;
     private Map<Integer, Boolean> impossibleCargos = new HashMap<>();
-    private Map<String, Truck> finalTrucks = new HashMap<>();
+    private Map<String, TruckReport> finalTruckReports = new HashMap<>();
     private boolean reportGenerated = false; // Флаг для отслеживания генерации отчета
     private boolean feasibilityCheckLogged = false; // Флаг для предотвращения повторных логов
+
+    // Inner class to store truck report data
+    private static class TruckReport {
+        int id;
+        float capacity;
+        float currentLoad;
+        float loadPercentage;
+        Set<String> cargoTypes = new HashSet<>();
+        List<CargoEntry> cargos = new ArrayList<>();
+        Set<Integer> processedCargoIds = new HashSet<>();
+        Set<Integer> impossibleCargoIds = new HashSet<>();
+        static class CargoEntry {
+            int id;
+            String type;
+            float weight;
+
+            CargoEntry(int id, String type, float weight) {
+                this.id = id;
+                this.type = type;
+                this.weight = weight;
+            }
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Truck ID: ").append(id).append("\n");
+            sb.append("Capacity: ").append(capacity).append("\n");
+            sb.append("Current Load: ").append(currentLoad).append(" (").append(loadPercentage).append("%)\n");
+            sb.append("Loaded Cargo Types: ").append(cargoTypes).append("\n");
+            sb.append("Cargos: \n");
+
+            for (CargoEntry cargo : cargos) {
+                sb.append("  - Cargo ").append(cargo.id).append(" (Type: ").append(cargo.type)
+                        .append(", Weight: ").append(cargo.weight).append(")\n");
+            }
+
+            return sb.toString();
+        }
+    }
 
     @Override
     protected void setup() {
@@ -211,7 +253,7 @@ public class LoadingManagerAgent extends Agent {
         // Устанавливаем таймаут для сбора отчетов
         addBehaviour(new WakerBehaviour(this, 15000) { // 15 seconds timeout
             protected void onWake() {
-                System.out.println("Report collection timeout reached. Trucks responded: " + finalTrucks.size() +
+                System.out.println("Report collection timeout reached. Trucks responded: " + finalTruckReports.size() +
                         " out of " + truckReadyStatus.size());
                 generateFinalReport();
             }
@@ -226,15 +268,24 @@ public class LoadingManagerAgent extends Agent {
                 ACLMessage reply = myAgent.receive(mt);
 
                 if (reply != null) {
-                    try {
-                        Truck truck = (Truck) reply.getContentObject();
-                        finalTrucks.put(reply.getSender().getLocalName(), truck);
-                        pendingTrucks.remove(reply.getSender());
-                        reportsReceived++;
-                        System.out.println("Received report from " + reply.getSender().getLocalName() +
-                                ". Total reports: " + reportsReceived + "/" + truckReadyStatus.size());
-                    } catch (UnreadableException e) {
-                        System.err.println("Error reading truck data from " + reply.getSender().getLocalName() + ": " + e.getMessage());
+                    // Try to parse the string report
+                    String content = reply.getContent();
+                    if (content != null && content.startsWith("TRUCK_DATA_START")) {
+                        // This is a text format truck report
+                        try {
+                            TruckReport report = parseTruckReport(content);
+                            finalTruckReports.put(reply.getSender().getLocalName(), report);
+                            pendingTrucks.remove(reply.getSender());
+                            reportsReceived++;
+                            System.out.println("Received string report from " + reply.getSender().getLocalName() +
+                                    ". Total reports: " + reportsReceived + "/" + truckReadyStatus.size());
+                        } catch (Exception e) {
+                            System.err.println("Error parsing truck report from " + reply.getSender().getLocalName() + ": " + e.getMessage());
+                            e.printStackTrace();
+                            pendingTrucks.remove(reply.getSender());
+                        }
+                    } else {
+                        System.err.println("Received non-truck data from " + reply.getSender().getLocalName() + ": " + content);
                         pendingTrucks.remove(reply.getSender());
                     }
                 } else {
@@ -254,26 +305,85 @@ public class LoadingManagerAgent extends Agent {
         });
     }
 
+    // Parse the truck report from string format
+    private TruckReport parseTruckReport(String reportText) {
+        TruckReport report = new TruckReport();
+        boolean inCargosSection = false;
+
+        for (String line : reportText.split("\n")) {
+            line = line.trim();
+
+            if (line.equals("CARGOS_START")) {
+                inCargosSection = true;
+                continue;
+            } else if (line.equals("CARGOS_END")) {
+                inCargosSection = false;
+                continue;
+            }
+
+            if (inCargosSection) {
+                // Parse cargo line: id:type:weight
+                String[] cargoParts = line.split(":");
+                if (cargoParts.length >= 3) {
+                    int id = Integer.parseInt(cargoParts[0]);
+                    String type = cargoParts[1];
+                    float weight = Float.parseFloat(cargoParts[2]);
+                    report.cargos.add(new TruckReport.CargoEntry(id, type, weight));
+                    report.cargoTypes.add(type);
+                }
+            } else if (line.startsWith("ID:")) {
+                report.id = Integer.parseInt(line.substring(3));
+            } else if (line.startsWith("CAPACITY:")) {
+                report.capacity = Float.parseFloat(line.substring(9));
+            } else if (line.startsWith("CURRENT_LOAD:")) {
+                report.currentLoad = Float.parseFloat(line.substring(13));
+            } else if (line.startsWith("LOAD_PERCENTAGE:")) {
+                report.loadPercentage = Float.parseFloat(line.substring(16));
+            } else if (line.startsWith("PROCESSED_CARGO_IDS:")) {
+                String idsStr = line.substring(19);
+                if (!idsStr.isEmpty()) {
+                    for (String idStr : idsStr.split(",")) {
+                        if (!idStr.isEmpty()) {
+                            try {
+                                report.processedCargoIds.add(Integer.parseInt(idStr.trim()));
+                            } catch (NumberFormatException e) {
+                                System.err.println("Ошибка при парсинге ID груза: " + idStr);
+                            }
+                        }
+                    }
+                }
+            } else if (line.startsWith("CARGO_TYPES:")) {
+                String[] types = line.substring(12).split(",");
+                for (String type : types) {
+                    if (!type.isEmpty()) {
+                        report.cargoTypes.add(type);
+                    }
+                }
+            } else if (line.startsWith("IMPOSSIBLE_CARGO_IDS:")) {
+                String idsStr = line.substring(21);
+                if (!idsStr.isEmpty()) {
+                    for (String idStr : idsStr.split(",")) {
+                        if (!idStr.isEmpty()) {
+                            try {
+                                report.impossibleCargoIds.add(Integer.parseInt(idStr.trim()));
+                            } catch (NumberFormatException e) {
+                                System.err.println("Ошибка при парсинге ID невозможного груза: " + idStr);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return report;
+    }
+
     private void generateFinalReport() {
         System.out.println("Generating final report...");
-        System.out.println("Number of trucks with data: " + finalTrucks.size());
+        System.out.println("Number of trucks with data: " + finalTruckReports.size());
 
-        if (finalTrucks.isEmpty()) {
-            System.out.println("ERROR: No truck data available to generate report!");
-            // Создаем пустой отчет с сообщением об ошибке
-            try (PrintWriter writer = new PrintWriter(new FileWriter("loading_report.txt"))) {
-                writer.println("TRUCK LOADING REPORT - ERROR");
-                writer.println("===================");
-                writer.println();
-                writer.println("No truck data available to generate report.");
-                writer.println("Possible causes:");
-                writer.println("- No trucks reported their status");
-                writer.println("- Communication errors between agents");
-                System.out.println("Empty error report generated: loading_report.txt");
-            } catch (IOException e) {
-                System.err.println("Error writing report file: " + e.getMessage());
-                e.printStackTrace();
-            }
+        if (finalTruckReports.isEmpty()) {
+            // (код для пустого отчета)
             return;
         }
 
@@ -288,21 +398,39 @@ public class LoadingManagerAgent extends Agent {
             float totalCapacity = 0;
             float totalLoad = 0;
 
-            List<String> truckNames = new ArrayList<>(finalTrucks.keySet());
+            List<String> truckNames = new ArrayList<>(finalTruckReports.keySet());
             Collections.sort(truckNames);
 
+            // Считаем фактически загруженные грузы
+            Set<Integer> allLoadedCargoIds = new HashSet<>();
+
             for (String truckName : truckNames) {
-                Truck truck = finalTrucks.get(truckName);
-                writer.println(truck.toString());
+                TruckReport report = finalTruckReports.get(truckName);
+                writer.println(report.toString());
                 writer.println("------------------");
 
-                totalCapacity += truck.getCapacity();
-                totalLoad += truck.getCurrentLoad();
+                totalCapacity += report.capacity;
+                totalLoad += report.currentLoad;
+
+                // Добавляем все грузы из отчета в общий список загруженных грузов
+                for (TruckReport.CargoEntry cargo : report.cargos) {
+                    allLoadedCargoIds.add(cargo.id);
+                }
             }
+
+            // Собираем все идентификаторы грузов из конфигурации
+            Set<Integer> allCargoIds = new HashSet<>();
+            for (Cargo cargo : config.getCargos()) {
+                allCargoIds.add(cargo.getId());
+            }
+
+            // Невозможные грузы - это те, которые не были загружены ни в один грузовик
+            Set<Integer> trueImpossibleCargos = new HashSet<>(allCargoIds);
+            trueImpossibleCargos.removeAll(allLoadedCargoIds);
 
             writer.println("SUMMARY");
             writer.println("=======");
-            writer.println("Total trucks: " + finalTrucks.size());
+            writer.println("Total trucks: " + finalTruckReports.size());
             writer.println("Total capacity: " + totalCapacity);
             writer.println("Total load: " + totalLoad);
             if (totalCapacity > 0) {
@@ -312,8 +440,11 @@ public class LoadingManagerAgent extends Agent {
             }
             writer.println("Ideal loading percentage: " + config.getIdealLoadPercentage() + "%");
             writer.println();
-            writer.println("Impossible cargos count: " + impossibleCargos.size());
-            writer.println("Remaining cargos: " + availableCargos.size());
+
+            // Обработанные грузы - это все загруженные грузы
+            writer.println("Total processed cargos: " + allLoadedCargoIds.size());
+            writer.println("Impossible cargos count: " + trueImpossibleCargos.size());
+            writer.println("Remaining cargos: " + (allCargoIds.size() - allLoadedCargoIds.size()));
 
             writer.flush(); // Принудительная запись данных в файл
             System.out.println("Report successfully generated: loading_report.txt");

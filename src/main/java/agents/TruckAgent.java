@@ -9,9 +9,12 @@ import jade.lang.acl.UnreadableException;
 import model.Cargo;
 import model.Truck;
 import util.LogHelper;
+import model.CargoPool;
+
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class TruckAgent extends Agent {
     private Truck truck;
@@ -26,12 +29,13 @@ public class TruckAgent extends Agent {
     private static final int MAX_EXCHANGE_ATTEMPTS = 2;
     private float desiredExchangeWeight;
     private String direction;
-    private List<AID> otherTruckAIDs; // Добавьте это объявление
+    private List<AID> otherTruckAIDs;
     private Map<AID, Boolean> truckReadyStatus = new HashMap<>();
     private Map<AID, Cargo> pendingTransfers = new HashMap<>();
     private static Set<Integer> recentlyTransferredCargoIds = Collections.synchronizedSet(new HashSet<>());    private long exchangeStartTime = -1;
     private static final long MAX_EXCHANGE_TIME = 60000;
     private static Set<Integer> globalTransferredCargoIds = new HashSet<>();
+    private Set<Integer> impossibleCargoIds = new HashSet<>();
 
 
     @Override
@@ -49,7 +53,7 @@ public class TruckAgent extends Agent {
 
         LogHelper.info(truck.getId(), "Агент запущен. Вместимость: " + truck.getCapacity());
 
-        // Behavior to request cargo from the manager
+
         addBehaviour(new OneShotBehaviour(this) {
             public void action() {
                 requestCargo();
@@ -73,21 +77,9 @@ public class TruckAgent extends Agent {
                             LogHelper.info(truck.getId(), "Грузовик " + truckName + " теперь в статусе READY");
                         }
                     }
-                    // ИСПРАВЛЕНИЕ: эта проверка должна быть за пределами предыдущего условия
                     else if (content != null && content.startsWith("CARGO_TYPES:")) {
                         // Обрабатываем тут сообщения о типах грузов
                         LogHelper.info(truck.getId(), "Получены типы грузов: " + content);
-                    }
-                    else if (content != null && content.equals("REPORT_STATUS")) {
-                        LogHelper.info(truck.getId(), "Отправка финального отчета менеджеру");
-                        ACLMessage reply = msg.createReply();
-                        reply.setPerformative(ACLMessage.INFORM);
-                        try {
-                            reply.setContentObject(truck);
-                            myAgent.send(reply);
-                        } catch (IOException ioe) {
-                            ioe.printStackTrace();
-                        }
                     } else {
                         // Пробуем обрабатывать как объект
                         try {
@@ -112,7 +104,7 @@ public class TruckAgent extends Agent {
                 }
             }
         });
-        // Behavior to handle cargo response (INFORM, REFUSE, REPORT_STATUS)
+        // Behavior to handle cargo response REFUSE
         addBehaviour(new CyclicBehaviour(this) {
             public void action() {
                 MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.REFUSE);
@@ -182,7 +174,6 @@ public class TruckAgent extends Agent {
         });
 
         // Behavior to handle exchange requests
-        // Behavior to handle exchange requests
         addBehaviour(new CyclicBehaviour(this) {
             public void action() {
                 MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
@@ -214,7 +205,7 @@ public class TruckAgent extends Agent {
                                     reason = "загрузка уже оптимальна (" + truck.getLoadPercentage() + "%)";
                                 }
                                 // Важно: смотрим на противоположность направлений
-                                else if (direction.equals("NEED_MORE") &&
+                                /*else if (direction.equals("NEED_MORE") &&
                                         truck.getLoadPercentage() > idealLoadPercentage) {
                                     // Мы перегружены, а другой грузовик хочет больше - хорошее совпадение
                                     if (!truck.getLoadedCargos().isEmpty() &&
@@ -223,7 +214,7 @@ public class TruckAgent extends Agent {
                                     } else {
                                         reason = "нет грузов для передачи или их нельзя безопасно удалить";
                                     }
-                                }
+                                }*/
                                 else if (direction.equals("NEED_LESS") &&
                                         truck.getLoadPercentage() < idealLoadPercentage) {
                                     // Мы недогружены, а другой грузовик хочет отдать груз - хорошее совпадение
@@ -545,7 +536,7 @@ public class TruckAgent extends Agent {
                                                 truck.getLoadedCargos());
 
                                         // Отправляем груз менеджеру для обработки
-                                        sendCargoToManager(cargoToRestore);
+                                        returnCargoToPool(cargoToRestore);
                                     }
                                 }
                             }
@@ -565,7 +556,7 @@ public class TruckAgent extends Agent {
                                             truck.getLoadedCargos());
 
                                     // Отправляем груз менеджеру для обработки
-                                    sendCargoToManager(cargoToRestore);
+                                    returnCargoToPool(cargoToRestore);
                                 }
                             }
                         }
@@ -587,28 +578,40 @@ public class TruckAgent extends Agent {
         });
 
         // Объединенный обработчик для REPORT_STATUS сообщений
+        // В метод setup() класса TruckAgent добавьте следующий код
+// Заменяет предыдущий обработчик REPORT_STATUS
+        // Around line 583 (the REPORT_STATUS handler)
         addBehaviour(new CyclicBehaviour(this) {
             public void action() {
                 MessageTemplate reportTemplate = MessageTemplate.and(
-                        MessageTemplate.or(
-                                MessageTemplate.MatchPerformative(ACLMessage.REQUEST),
-                                MessageTemplate.MatchPerformative(ACLMessage.INFORM)
-                        ),
+                        MessageTemplate.MatchPerformative(ACLMessage.REQUEST),
                         MessageTemplate.MatchContent("REPORT_STATUS")
                 );
 
                 ACLMessage reportMsg = myAgent.receive(reportTemplate);
                 if (reportMsg != null) {
-                    LogHelper.info(truck.getId(), " received REPORT_STATUS request");
+                    // Add small random delay to prevent network congestion
+                    try {
+                        Thread.sleep(300 + (truck.getId() * 100));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
 
+                    LogHelper.info(truck.getId(), "Получен запрос REPORT_STATUS от " + reportMsg.getSender().getLocalName());
+
+                    // Create a reply directly to the message
                     ACLMessage reply = reportMsg.createReply();
                     reply.setPerformative(ACLMessage.INFORM);
+
                     try {
-                        reply.setContentObject(truck);
+                        // Send string representation
+                        String truckData = serializeTruckToString();
+                        reply.setContent(truckData);
                         myAgent.send(reply);
-                        LogHelper.info(truck.getId(), " sent final report to manager");
-                    } catch (IOException e) {
-                        LogHelper.failure(truck.getId(),"Error sending truck data: " + e.getMessage());
+
+                        LogHelper.success(truck.getId(), "Отправлен финальный отчет менеджеру (текстовый формат)");
+                    } catch (Exception e) {
+                        LogHelper.failure(truck.getId(), "Ошибка при отправке данных грузовика: " + e.getMessage());
                         e.printStackTrace();
                     }
                 } else {
@@ -707,20 +710,12 @@ public class TruckAgent extends Agent {
 
         return bestMatch;
     }
-    // Метод для отправки груза менеджеру
-    private void sendCargoToManager(Cargo cargo) {
-        ACLMessage managerMsg = new ACLMessage(ACLMessage.INFORM);
-        managerMsg.addReceiver(new AID("manager", AID.ISLOCALNAME));
-        try {
-            managerMsg.setContentObject(cargo);
-            managerMsg.addUserDefinedParameter("action", "UNDELIVERABLE_CARGO");
-            send(managerMsg);
-            LogHelper.info(truck.getId(), "Груз " + cargo.getId() +
-                    " передан менеджеру, так как не может быть восстановлен");
-        } catch (IOException e) {
-            e.printStackTrace();
-            LogHelper.error(truck.getId(), "Не удалось отправить груз менеджеру: " + e.getMessage());
-        }
+
+    private void returnCargoToPool(Cargo cargo) {
+        CargoPool cargoPool = CargoPool.getInstance();
+        cargoPool.addCargo(cargo); // Добавляем груз обратно в пул
+        LogHelper.info(truck.getId(), "Груз " + cargo.getId() +
+                " возвращен в пул, так как не может быть восстановлен");
     }
     private boolean canRemoveCargoSafely(Cargo cargo) {
         // Проверяем, не является ли этот груз единственным препятствием для несовместимости других грузов
@@ -750,27 +745,66 @@ public class TruckAgent extends Agent {
     }
 
     private void requestCargo() {
-        ACLMessage request = new ACLMessage(ACLMessage.REQUEST);
-        request.addReceiver(new AID("manager", AID.ISLOCALNAME));
-        request.setContent("REQUEST_CARGO");
-        send(request);
+        // Получаем доступные грузы напрямую из пула
+        CargoPool cargoPool = CargoPool.getInstance();
+        List<Cargo> availableCargos = cargoPool.getAvailableCargos();
+
+        if (availableCargos.isEmpty()) {
+            LogHelper.info(truck.getId(), "Нет доступных грузов в пуле, завершаем загрузку");
+            loadingComplete = true;
+            checkLoadingProgress();
+            return;
+        }
+
+        // Ищем подходящий груз
+        processCargos(availableCargos);
     }
+
 
     private void processCargos(List<Cargo> availableCargos) {
         boolean cargoFound = false;
         processedCargoIds.clear();
+        CargoPool cargoPool = CargoPool.getInstance();
 
         for (Cargo cargo : availableCargos) {
             if (processedCargoIds.contains(cargo.getId())) continue;
+
             if (truck.canAddCargo(cargo)) {
                 cargoFound = true;
+                int cargoId = cargo.getId();
 
-                ACLMessage claim = new ACLMessage(ACLMessage.REQUEST);
-                claim.addReceiver(new AID("manager", AID.ISLOCALNAME));
-                claim.setContent("CLAIM_CARGO:" + cargo.getId());
-                send(claim);
-                processedCargoIds.add(cargo.getId());
-                return;
+                // Пытаемся зарезервировать груз
+                if (cargoPool.reserveCargo(cargoId)) {
+                    // Если успешно зарезервировали, берем его из пула
+                    Cargo reservedCargo = cargoPool.takeCargo(cargoId);
+
+                    if (reservedCargo != null) {
+                        // Добавляем груз в грузовик
+                        truck.addCargo(reservedCargo);
+                        LogHelper.success(truck.getId(), "Загрузил груз " + reservedCargo.getId() +
+                                " (тип: " + reservedCargo.getType() + ")");
+
+                        float loadPercentage = truck.getLoadPercentage();
+                        if (Math.abs(loadPercentage - idealLoadPercentage) <= 10) {
+                            notifyManager();
+                        } else {
+                            // Просим следующий груз
+                            addBehaviour(new WakerBehaviour(this, 500) {
+                                protected void onWake() {
+                                    requestCargo();
+                                }
+                            });
+                        }
+                        return;
+                    } else {
+                        // Если не смогли взять груз (кто-то опередил), отменяем резервирование
+                        cargoPool.cancelReservation(cargoId);
+                    }
+                }
+            } else {
+                LogHelper.warning(truck.getId(), "Не могу загрузить груз " + cargo.getId() +
+                        " (тип: " + cargo.getType() + ") - несовместим с текущими грузами или превышена вместимость");
+                impossibleCargoIds.add(cargo.getId());
             }
             processedCargoIds.add(cargo.getId());
         }
@@ -788,6 +822,7 @@ public class TruckAgent extends Agent {
             }
         }
     }
+
 
     private void checkLoadingProgress() {
         float loadPercentage = truck.getLoadPercentage();
@@ -846,8 +881,16 @@ public class TruckAgent extends Agent {
             else if (loadPercentage < idealLoadPercentage - 10) {
                 // Недогруженные грузовики инициируют обмен немедленно
                 LogHelper.exchange(truck.getId(), "Грузовик недогружен на " + (idealLoadPercentage - loadPercentage) +
-                        "%, инициируем обмен.");
-                requestExchange();
+                        "%, ожидаем получения грузов...");
+                addBehaviour(new WakerBehaviour(this, 60000) { // 30 секунд ожидания
+                    protected void onWake() {
+                        if (!readyStatusSent) {
+                            LogHelper.warning(truck.getId(), "Истекло время ожидания грузов, отправляем READY с текущей загрузкой: " +
+                                    truck.getLoadPercentage() + "%");
+                            notifyManager();
+                        }
+                    }
+                });
                 return;
             }
         } else {
@@ -915,10 +958,10 @@ public class TruckAgent extends Agent {
                 2000,  // Сильная перегрузка: 2 секунды
                 4000,  // Умеренная перегрузка: 4 секунды
                 6000,  // Небольшая перегрузка: 6 секунд
-                8000,  // Небольшая недогрузка: 8 секунд
-                10000, // Умеренная недогрузка: 10 секунд
-                12000, // Сильная недогрузка: 12 секунд
-                15000  // Очень сильная недогрузка: 15 секунд
+                15000,  // Небольшая недогрузка: 8 секунд
+                20000, // Умеренная недогрузка: 10 секунд
+                25000, // Сильная недогрузка: 12 секунд
+                30000  // Очень сильная недогрузка: 15 секунд
         };
 
         // Базовая задержка зависит от интервала загрузки
@@ -969,7 +1012,14 @@ public class TruckAgent extends Agent {
                     return;
                 }
 
-                direction = (truck.getCurrentLoad() > idealLoad) ? "NEED_LESS" : "NEED_MORE";
+                if (truck.getCurrentLoad() > idealLoad) {
+                    direction = "NEED_LESS";
+                } else {
+                    // Если нужно больше груза, пропускаем обмен
+                    exchangeInProgress = false;
+                    notifyManager();
+                    return;
+                }
 
                 // Начало обмена
                 exchangeInProgress = true;
@@ -1022,6 +1072,11 @@ public class TruckAgent extends Agent {
         if (!readyStatusSent) {
             readyStatusSent = true;
             LogHelper.info(truck.getId(), "Отправка TRUCK_READY в менеджер.");
+            try {
+                Thread.sleep(truck.getId() * 2000); // По 0.5 сек на каждый ID
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
 
             ACLMessage ready = new ACLMessage(ACLMessage.REQUEST);
             ready.addReceiver(new AID("manager", AID.ISLOCALNAME));
@@ -1061,7 +1116,7 @@ public class TruckAgent extends Agent {
         } else if (direction.equals("NEED_MORE")) {
             // Если мы хотим увеличить груз, то ждем пока другой грузовик отправит нам груз
             // Увеличиваем таймаут, так как теперь мы ждем, пока другой грузовик найдет и отправит груз
-            LogHelper.exchange(truck.getId(), "Ожидание получения груза от " + receiver.getLocalName());
+            /*LogHelper.exchange(truck.getId(), "Ожидание получения груза от " + receiver.getLocalName());
 
             // Таймер для завершения ожидания, если груз не придет
             addBehaviour(new WakerBehaviour(this, 30000) { // 30 секунд на ожидание
@@ -1072,9 +1127,10 @@ public class TruckAgent extends Agent {
                         checkLoadingProgress();
                     }
                 }
-            });
+            });*/
         } else {
             LogHelper.error(truck.getId(), "Неизвестное направление обмена: " + direction);            exchangeInProgress = false;
+            exchangeInProgress = false;
             checkLoadingProgress();
         }
     }
@@ -1135,7 +1191,7 @@ public class TruckAgent extends Agent {
                                     } else {
                                         LogHelper.error(truck.getId(), "Невозможно восстановить груз " + cargoToRestore.getId() +
                                                 " (тип: " + cargoToRestore.getType() + ") - стал несовместим с текущими грузами");
-                                        sendCargoToManager(cargoToRestore);
+                                        returnCargoToPool(cargoToRestore);
                                     }
                                 }
                                 exchangeInProgress = false;
@@ -1281,6 +1337,36 @@ public class TruckAgent extends Agent {
                 ", считаем несовместимым для безопасности");
         return false;
     }
+    private String serializeTruckToString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("TRUCK_DATA_START\n");
+        sb.append("ID:").append(truck.getId()).append("\n");
+        sb.append("CAPACITY:").append(truck.getCapacity()).append("\n");
+        sb.append("CURRENT_LOAD:").append(truck.getCurrentLoad()).append("\n");
+        sb.append("LOAD_PERCENTAGE:").append(truck.getLoadPercentage()).append("\n");
+        sb.append("PROCESSED_CARGO_IDS:").append(String.join(",",
+                processedCargoIds.stream().map(String::valueOf).collect(Collectors.toList()))).append("\n");
 
+        sb.append("IMPOSSIBLE_CARGO_IDS:").append(String.join(",",
+                impossibleCargoIds.stream().map(String::valueOf).collect(Collectors.toList()))).append("\n");
+
+        // List of loaded cargo types
+        sb.append("CARGO_TYPES:");
+        Set<String> loadedTypes = new HashSet<>();
+        for (Cargo c : truck.getLoadedCargos()) {
+            loadedTypes.add(c.getType());
+        }
+        sb.append(String.join(",", loadedTypes)).append("\n");
+
+        // List of cargos with clear delimiters
+        sb.append("CARGOS_START\n");
+        for (Cargo cargo : truck.getLoadedCargos()) {
+            sb.append(cargo.getId()).append(":").append(cargo.getType()).append(":").append(cargo.getWeight()).append("\n");
+        }
+        sb.append("CARGOS_END\n");
+        sb.append("TRUCK_DATA_END");
+
+        return sb.toString();
+    }
 
 }
