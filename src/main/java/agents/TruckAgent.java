@@ -8,6 +8,7 @@ import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
 import model.Cargo;
 import model.Truck;
+import util.LogHelper;
 
 import java.io.*;
 import java.util.*;
@@ -25,7 +26,6 @@ public class TruckAgent extends Agent {
     private static final int MAX_EXCHANGE_ATTEMPTS = 2;
     private float desiredExchangeWeight;
     private String direction;
-    private String otherTruckId;
     private List<AID> otherTruckAIDs; // Добавьте это объявление
     private Map<AID, Boolean> truckReadyStatus = new HashMap<>();
     private Map<AID, Cargo> pendingTransfers = new HashMap<>();
@@ -45,10 +45,9 @@ public class TruckAgent extends Agent {
             otherTruckAIDs.removeIf(aid ->
                     aid.getLocalName().equals(getAID().getLocalName())
             );
-            System.out.println("[DEBUG] Список получателей: " + otherTruckAIDs); // Логирование
         }
 
-        System.out.println("Truck Agent " + getAID().getName() + " is ready. Capacity: " + truck.getCapacity());
+        LogHelper.info(truck.getId(), "Агент запущен. Вместимость: " + truck.getCapacity());
 
         // Behavior to request cargo from the manager
         addBehaviour(new OneShotBehaviour(this) {
@@ -71,10 +70,16 @@ public class TruckAgent extends Agent {
                             String truckName = parts[1];
                             AID truckAID = new AID(truckName, AID.ISLOCALNAME);
                             truckReadyStatus.put(truckAID, true);
-                            System.out.println("Грузовик " + truckName + " теперь в статусе READY");
+                            LogHelper.info(truck.getId(), "Грузовик " + truckName + " теперь в статусе READY");
                         }
-                    } else if (content != null && content.equals("REPORT_STATUS")) {
-                        System.out.println(getAID().getName() + " sending final report to manager");
+                    }
+                    // ИСПРАВЛЕНИЕ: эта проверка должна быть за пределами предыдущего условия
+                    else if (content != null && content.startsWith("CARGO_TYPES:")) {
+                        // Обрабатываем тут сообщения о типах грузов
+                        LogHelper.info(truck.getId(), "Получены типы грузов: " + content);
+                    }
+                    else if (content != null && content.equals("REPORT_STATUS")) {
+                        LogHelper.info(truck.getId(), "Отправка финального отчета менеджеру");
                         ACLMessage reply = msg.createReply();
                         reply.setPerformative(ACLMessage.INFORM);
                         try {
@@ -94,12 +99,12 @@ public class TruckAgent extends Agent {
                                 Cargo receivedCargo = (Cargo) contentObj;
                                 processCargo(receivedCargo, msg.getSender());
                             } else if (contentObj instanceof Truck) {
-                                System.out.println("Получен объект Truck");
+                                LogHelper.debug(truck.getId(), "Получен объект Truck");
                             } else {
-                                System.out.println("Получен объект с классом: " + contentObj.getClass().getName());
+                                LogHelper.debug(truck.getId(), "Получен объект с классом: " + contentObj.getClass().getName());
                             }
                         } catch (UnreadableException e) {
-                            System.out.println("Получено неизвестное текстовое сообщение INFORM: " + content);
+                            LogHelper.debug(truck.getId(), "Получено неизвестное текстовое сообщение INFORM: " + content);
                         }
                     }
                 } else {
@@ -143,8 +148,8 @@ public class TruckAgent extends Agent {
                             String[] parts = content.split(":");
                             if (parts.length > 1) {
                                 int cargoId = Integer.parseInt(parts[1]);
-                                System.out.println("[ПОДТВЕРЖДЕНИЕ] Груз " + cargoId +
-                                        " успешно получен грузовиком " + msg.getSender().getLocalName());
+                                LogHelper.exchange(truck.getId(),"Груз " + cargoId +
+                                        " успешно получен");
 
                                 // Удаляем груз из списка ожидающих подтверждения
                                 pendingTransfers.remove(msg.getSender());
@@ -154,7 +159,7 @@ public class TruckAgent extends Agent {
                             try {
                                 Cargo receivedCargo = (Cargo) msg.getContentObject();
                                 truck.addCargo(receivedCargo);
-                                System.out.println(getAID().getName() + " загрузил груз " + receivedCargo.getId());
+                                LogHelper.info(truck.getId(), " загрузил груз " + receivedCargo.getId());
 
                                 float loadPercentage = truck.getLoadPercentage();
                                 if (Math.abs(loadPercentage - idealLoadPercentage) <= 10) {
@@ -186,7 +191,7 @@ public class TruckAgent extends Agent {
                 if (msg != null) {
                     AID sender = msg.getSender();
                     String content = msg.getContent();
-                    System.out.println(getAID().getName() + " получил запрос обмена: " + content +
+                    LogHelper.info(truck.getId(), " получил запрос обмена: " + content +
                             " (readyStatus=" + readyStatusSent + ")");
                     if (content.startsWith("EXCHANGE_REQUEST")) {
                         String[] parts = content.split(":", 4); // Увеличили до 4 для нового параметра
@@ -238,7 +243,7 @@ public class TruckAgent extends Agent {
                                     ACLMessage reply = new ACLMessage(ACLMessage.PROPOSE);
                                     reply.addReceiver(msg.getSender());
                                     reply.setContent("EXCHANGE_POSSIBLE:" + truck.getLoadPercentage());
-                                    System.out.println(getAID().getName() + " может помочь с обменом, отправка предложения: " + truck.getLoadPercentage());
+                                    LogHelper.exchange(truck.getId(), " может помочь с обменом, отправка предложения: " + truck.getLoadPercentage());
                                     myAgent.send(reply);
                                 } else {
                                     // Добавлен явный отказ вместо просто логирования
@@ -246,10 +251,10 @@ public class TruckAgent extends Agent {
                                     decline.addReceiver(msg.getSender());
                                     decline.setContent("EXCHANGE_REFUSED:" + reason);
                                     myAgent.send(decline);
-                                    System.out.println(getAID().getName() + " не может помочь с обменом. Причина: " + reason);
+                                    LogHelper.failure(truck.getId()," не может помочь с обменом. Причина: " + reason);
                                 }
                             } catch (NumberFormatException e) {
-                                System.out.println("[ОШИБКА] Неверный формат данных в сообщении обмена: " + content);
+                                LogHelper.error(truck.getId(),"Неверный формат данных в сообщении обмена: " + content);
                             }
                         }
                     }
@@ -269,11 +274,8 @@ public class TruckAgent extends Agent {
                     if (content != null && content.startsWith("EXCHANGE_REFUSED:")) {
                         // Регистрируем отказ, но продолжаем ждать другие ответы
                         String reason = content.substring("EXCHANGE_REFUSED:".length());
-                        System.out.println("[ОБМЕН] Получен отказ от " + msg.getSender().getLocalName() +
+                        LogHelper.failure(truck.getId(),"Получен отказ от " + msg.getSender().getLocalName() +
                                 ": " + reason);
-
-                        // Если это последний ожидаемый ответ, проверяем статус обмена
-                        // Это потребует учета ожидаемых ответов, что усложнит код
                     }
                 } else {
                     block();
@@ -289,24 +291,22 @@ public class TruckAgent extends Agent {
 
                 if (msg != null) {
                     String content = msg.getContent();
-                    System.out.println(getAID().getName() + " получил предложение: " + content);
+                    LogHelper.info(truck.getId(), " получил предложение: " + content);
 
                     if (content.startsWith("EXCHANGE_POSSIBLE")) {
                         // Убираем проверку exchangeInProgress, обрабатываем все предложения
                         String[] parts = content.split(":");
                         if (parts.length >= 2) {
                             float otherLoadPercentage = Float.parseFloat(parts[1]);
-                            System.out.println("[DEBUG] Направление обмена: " + direction +
+                            LogHelper.debug(truck.getId(),"Направление обмена: " + direction +
                                     ", загрузка другого грузовика: " + otherLoadPercentage);
-                            boolean willImproveOurSituation = false;
-                            boolean willImproveTheirSituation = false;
                             // Проверяем, подходит ли предложение
                             boolean acceptProposal = false;
 
                             // Если наша загрузка уже оптимальная, не принимаем предложения
                             if (Math.abs(truck.getLoadPercentage() - idealLoadPercentage) <= 10) {
                                 acceptProposal = false;
-                                System.out.println("[DEBUG] Предложение отклонено - у нас уже оптимальная загрузка.");
+                                LogHelper.failure(truck.getId(),"Предложение отклонено - у нас уже оптимальная загрузка.");
                             }
                             // Если мы нуждаемся в большем грузе, а другой грузовик имеет больше чем идеально
                             else if (direction.equals("NEED_MORE") && otherLoadPercentage > idealLoadPercentage) {
@@ -352,7 +352,7 @@ public class TruckAgent extends Agent {
                                                             for (Cargo existingCargo : truck.getLoadedCargos()) {
                                                                 if (existingCargo.getIncompatibleTypes().contains(cargoType)) {
                                                                     compatible = false;
-                                                                    System.out.println("[ПРОВЕРКА] Тип " + cargoType +
+                                                                    LogHelper.failure(truck.getId(),"Тип " + cargoType +
                                                                             " несовместим с грузом " + existingCargo.getId() +
                                                                             " (тип: " + existingCargo.getType() + ")");
                                                                     break;
@@ -371,13 +371,12 @@ public class TruckAgent extends Agent {
                                                         reject.addReceiver(sender);
                                                         reject.setContent("REJECT_REASON:Несовместимые типы грузов");
                                                         send(reject);
-                                                        System.out.println("[ОТКАЗ] Предложение отклонено из-за несовместимости типов грузов");
+                                                        LogHelper.failure(truck.getId()," Предложение отклонено из-за несовместимости типов грузов");
                                                         exchangeInProgress = false;
                                                         checkLoadingProgress();
                                                     }
                                                 } else {
                                                     // Если не получили информацию о типах, продолжаем обмен (рискованно)
-                                                    System.out.println("[ПРЕДУПРЕЖДЕНИЕ] Не получена информация о типах грузов, продолжаем обмен");
                                                     continueExchange(sender);
                                                 }
                                             }
@@ -402,7 +401,7 @@ public class TruckAgent extends Agent {
 
                                 reject.setContent("REJECT_REASON:" + rejectionReason);
                                 send(reject);
-                                System.out.println("[ОТКАЗ] Предложение не подходит. Причина: " + rejectionReason);
+                                LogHelper.failure(truck.getId()," Предложение не подходит. Причина: " + rejectionReason);
                             }
                         }
                     }
@@ -445,7 +444,7 @@ public class TruckAgent extends Agent {
                             first = false;
                         }
                         reply.setContent(typesList.toString());
-                        System.out.println("[ОТВЕТ] Отправляем типы грузов: " + typesList);
+                        LogHelper.info(truck.getId()," Отправляем типы грузов: " + typesList);
                     }
                     else if (msg.getContent().equals("GET_INCOMPATIBILITIES")) {
                         // Формируем информацию о несовместимостях
@@ -471,12 +470,12 @@ public class TruckAgent extends Agent {
 
                         String content = incompInfo.toString();
                         reply.setContent(content);
-                        System.out.println("[ОТВЕТ] Отправляем информацию о несовместимостях: " + content);
+                        LogHelper.info(truck.getId()," Отправляем информацию о несовместимостях: " + content);
                     }
                     else if (msg.getContent().equals("GET_FREE_CAPACITY")) {
                         float freeCapacity = truck.getCapacity() - truck.getCurrentLoad();
                         reply.setContent("FREE_CAPACITY:" + freeCapacity);
-                        System.out.println("[ОТВЕТ] Отправляем информацию о свободной вместимости: " + freeCapacity);
+                        LogHelper.info(truck.getId()," Отправляем информацию о свободной вместимости: " + freeCapacity);
                     }
 
                     send(reply);
@@ -510,7 +509,7 @@ public class TruckAgent extends Agent {
                     reply.setPerformative(ACLMessage.INFORM);
                     reply.setContent(typesList.toString());
                     send(reply);
-                    System.out.println("[DEBUG] Отправлены типы грузов: " + typesList.toString());
+                    LogHelper.debug(truck.getId()," Отправлены типы грузов: " + typesList.toString());
                 } else {
                     block();
                 }
@@ -529,9 +528,8 @@ public class TruckAgent extends Agent {
                         if (content.startsWith("CARGO_INCOMPATIBLE:")) {
                             String[] parts = content.split(":");
                             if (parts.length > 1) {
-                                System.out.println("[ОШИБКА] Груз " + parts[1] +
-                                        " несовместим с грузами в грузовике " +
-                                        msg.getSender().getLocalName());
+                                LogHelper.failure(truck.getId()," Груз " + parts[1] +
+                                        " несовместим с грузами в грузовике ");
 
                                 // Получаем груз для восстановления
                                 Cargo cargoToRestore = pendingTransfers.remove(msg.getSender());
@@ -539,10 +537,10 @@ public class TruckAgent extends Agent {
                                     // Проверяем совместимость перед восстановлением
                                     if (truck.canAddCargo(cargoToRestore)) {
                                         truck.addCargo(cargoToRestore);
-                                        System.out.println("[ВОССТАНОВЛЕНИЕ] Груз " + cargoToRestore.getId() +
+                                        LogHelper.warning(truck.getId()," Груз " + cargoToRestore.getId() +
                                                 " возвращен обратно из-за несовместимости");
                                     } else {
-                                        System.out.println("[ОШИБКА] Невозможно восстановить груз " + cargoToRestore.getId() +
+                                        LogHelper.failure(truck.getId()," Невозможно восстановить груз " + cargoToRestore.getId() +
                                                 " (тип: " + cargoToRestore.getType() + ") - стал несовместим с текущими грузами " +
                                                 truck.getLoadedCargos());
 
@@ -552,17 +550,17 @@ public class TruckAgent extends Agent {
                                 }
                             }
                         } else if (content.startsWith("TRANSFER_FAILED:")) {
-                            System.out.println("[ОШИБКА] Передача груза не удалась: " + content);
+                            LogHelper.failure(truck.getId()," Передача груза не удалась: " + content);
 
                             // Аналогичная проверка совместимости перед восстановлением
                             Cargo cargoToRestore = pendingTransfers.remove(msg.getSender());
                             if (cargoToRestore != null) {
                                 if (truck.canAddCargo(cargoToRestore)) {
                                     truck.addCargo(cargoToRestore);
-                                    System.out.println("[ВОССТАНОВЛЕНИЕ] Груз " + cargoToRestore.getId() +
+                                    LogHelper.warning(truck.getId()," Груз " + cargoToRestore.getId() +
                                             " возвращен обратно из-за ошибки передачи");
                                 } else {
-                                    System.out.println("[ОШИБКА] Невозможно восстановить груз " + cargoToRestore.getId() +
+                                    LogHelper.failure(truck.getId()," Невозможно восстановить груз " + cargoToRestore.getId() +
                                             " (тип: " + cargoToRestore.getType() + ") - стал несовместим с текущими грузами " +
                                             truck.getLoadedCargos());
 
@@ -582,7 +580,7 @@ public class TruckAgent extends Agent {
         addBehaviour(new WakerBehaviour(this, 180000) { // 30 second timeout
             protected void onWake() {
                 if (!readyStatusSent) {
-                    System.out.println(getAID().getName() + " завершает работу по таймауту");
+                    LogHelper.info(truck.getId(), "Завершение работы по таймауту");
                     notifyManager();
                 }
             }
@@ -601,16 +599,16 @@ public class TruckAgent extends Agent {
 
                 ACLMessage reportMsg = myAgent.receive(reportTemplate);
                 if (reportMsg != null) {
-                    System.out.println(getAID().getName() + " received REPORT_STATUS request");
+                    LogHelper.info(truck.getId(), " received REPORT_STATUS request");
 
                     ACLMessage reply = reportMsg.createReply();
                     reply.setPerformative(ACLMessage.INFORM);
                     try {
                         reply.setContentObject(truck);
                         myAgent.send(reply);
-                        System.out.println(getAID().getName() + " sent final report to manager");
+                        LogHelper.info(truck.getId(), " sent final report to manager");
                     } catch (IOException e) {
-                        System.err.println("Error sending truck data: " + e.getMessage());
+                        LogHelper.failure(truck.getId(),"Error sending truck data: " + e.getMessage());
                         e.printStackTrace();
                     }
                 } else {
@@ -622,11 +620,10 @@ public class TruckAgent extends Agent {
     private void processCargo(Cargo receivedCargo, AID sender) {
         if (truck.canAddCargo(receivedCargo)) {
             truck.addCargo(receivedCargo);
-            System.out.println("[УСПЕХ] Получен груз " + receivedCargo.getId() +
+            LogHelper.success(truck.getId(), "Получен груз " + receivedCargo.getId() +
                     " (тип: " + receivedCargo.getType() + ")" +
                     " от " + sender.getLocalName() +
                     ". Новая загрузка: " + truck.getLoadPercentage() + "%");
-
             // Отправляем подтверждение получения
             ACLMessage confirmMsg = new ACLMessage(ACLMessage.CONFIRM);
             confirmMsg.addReceiver(sender);
@@ -635,14 +632,12 @@ public class TruckAgent extends Agent {
 
             checkLoadingProgress();
         } else {
-            // Улучшенное сообщение об ошибке
-            System.out.println("[ОШИБКА] Не удалось добавить полученный груз " +
+            LogHelper.failure(truck.getId(), "Не удалось добавить полученный груз " +
                     receivedCargo.getId() + " (тип: " + receivedCargo.getType() + ")" +
                     " от " + sender.getLocalName() +
                     " - несовместим с текущими грузами " +
                     truck.getLoadedCargos() +
                     " или превышена вместимость " + truck.getCapacity());
-
             // Отправляем сообщение об ошибке
             ACLMessage errorMsg = new ACLMessage(ACLMessage.FAILURE);
             errorMsg.addReceiver(sender);
@@ -651,12 +646,11 @@ public class TruckAgent extends Agent {
         }
     }
     private Cargo findCargoToTransfer(float targetWeight) {
-        System.out.println("Поиск груза для передачи. Целевой вес: " + targetWeight);
+        LogHelper.debug(truck.getId(), "Поиск груза для передачи. Целевой вес: " + targetWeight);
         List<Cargo> loadedCargos = truck.getLoadedCargos();
-        System.out.println("Доступные грузы: " + loadedCargos.size() + " шт.");
-
+        LogHelper.debug(truck.getId(), "Доступные грузы: " + loadedCargos.size() + " шт.");
         if (loadedCargos.isEmpty()) {
-            System.out.println("Нет доступных грузов для передачи!");
+            LogHelper.warning(truck.getId(), "Нет доступных грузов для передачи!");
             return null;
         }
 
@@ -665,7 +659,7 @@ public class TruckAgent extends Agent {
             if (Math.abs(cargo.getWeight() - targetWeight) < 1.0 &&
                     canRemoveCargoSafely(cargo) &&
                     !recentlyTransferredCargoIds.contains(cargo.getId())) {
-                System.out.println("Найден идеальный груз: " + cargo.getId() + " весом " + cargo.getWeight());
+                LogHelper.debug(truck.getId(), "Найден идеальный груз: " + cargo.getId() + " весом " + cargo.getWeight());
                 recentlyTransferredCargoIds.add(cargo.getId());
                 return cargo;
             }
@@ -686,7 +680,7 @@ public class TruckAgent extends Agent {
 
         // Если нашли подходящий меньший груз, возвращаем его
         if (bestSmallerMatch != null) {
-            System.out.println("Найден подходящий меньший груз: " + bestSmallerMatch.getId() +
+            LogHelper.debug(truck.getId(), "Найден подходящий меньший груз: " + bestSmallerMatch.getId() +
                     " весом " + bestSmallerMatch.getWeight());
             recentlyTransferredCargoIds.add(bestSmallerMatch.getId());
             return bestSmallerMatch;
@@ -709,8 +703,7 @@ public class TruckAgent extends Agent {
             recentlyTransferredCargoIds.add(bestMatch.getId());
             globalTransferredCargoIds.add(bestMatch.getId());
         } else {
-            System.out.println("Не найдено ни одного подходящего груза!");
-        }
+            LogHelper.warning(truck.getId(), "Не найдено ни одного подходящего груза!");        }
 
         return bestMatch;
     }
@@ -722,12 +715,11 @@ public class TruckAgent extends Agent {
             managerMsg.setContentObject(cargo);
             managerMsg.addUserDefinedParameter("action", "UNDELIVERABLE_CARGO");
             send(managerMsg);
-            System.out.println("[ВОССТАНОВЛЕНИЕ] Груз " + cargo.getId() +
-                    " передан менеджеру, так как не может быть восстановлен в грузовике " +
-                    getAID().getLocalName());
+            LogHelper.info(truck.getId(), "Груз " + cargo.getId() +
+                    " передан менеджеру, так как не может быть восстановлен");
         } catch (IOException e) {
             e.printStackTrace();
-            System.out.println("[КРИТИЧЕСКАЯ ОШИБКА] Не удалось отправить груз менеджеру!");
+            LogHelper.error(truck.getId(), "Не удалось отправить груз менеджеру: " + e.getMessage());
         }
     }
     private boolean canRemoveCargoSafely(Cargo cargo) {
@@ -745,7 +737,7 @@ public class TruckAgent extends Agent {
         for (Cargo remainingCargo : otherCargos) {
             for (String incompatibleType : remainingCargo.getIncompatibleTypes()) {
                 if (remainingTypes.contains(incompatibleType)) {
-                    System.out.println("[DEBUG] Удаление груза " + cargo.getId() +
+                    LogHelper.debug(truck.getId(), "Удаление груза " + cargo.getId() +
                             " создаст несовместимость между типами " +
                             remainingCargo.getType() + " и " + incompatibleType);
                     return false;
@@ -753,7 +745,7 @@ public class TruckAgent extends Agent {
             }
         }
 
-        System.out.println("[DEBUG] Груз " + cargo.getId() + " можно безопасно удалить");
+        LogHelper.debug(truck.getId(), "Груз " + cargo.getId() + " можно безопасно удалить");
         return true;
     }
 
@@ -803,21 +795,19 @@ public class TruckAgent extends Agent {
         float currentLoad = truck.getCurrentLoad();
         float difference = Math.abs(loadPercentage - idealLoadPercentage);
 
-        System.out.println("[DEBUG] " + getAID().getName() +
-                " проверка загрузки: " + loadPercentage +
+        LogHelper.debug(truck.getId(), "Проверка загрузки: " + loadPercentage +
                 "%, идеальная: " + idealLoadPercentage +
                 "%, разница: " + difference +
                 ", READY статус: " + readyStatusSent +
                 ", попытки обмена: " + exchangeAttempts + "/" + MAX_EXCHANGE_ATTEMPTS);
-
         if (exchangeInProgress) {
-            System.out.println("[DEBUG] Обмен в процессе, ждем завершения...");
+            LogHelper.debug(truck.getId(), "Обмен в процессе, ждем завершения...");
             return; // Ждем ответа от других грузовиков
         }
 
         // Если загрузка уже идеальная (в пределах 10%) и статус не отправлен, отправляем
         if (difference <= 10) {
-            System.out.println("[DEBUG] Загрузка в допустимых пределах (" + loadPercentage +
+            LogHelper.info(truck.getId(), "Загрузка в допустимых пределах (" + loadPercentage +
                     "%), завершаем.");
             notifyManager();
             return;
@@ -825,15 +815,13 @@ public class TruckAgent extends Agent {
 
         // Если статус уже отправлен, ничего не делаем
         if (readyStatusSent) {
-            System.out.println("[DEBUG] Уже отправлен READY статус, пропускаем обмен.");
+            LogHelper.debug(truck.getId(), "Уже отправлен READY статус, пропускаем обмен.");
             return;
         }
 
         // Проверка на превышение времени обмена
-        // In checkLoadingProgress method
-        // Only check time limit if we've started exchanges
         if (exchangeStartTime > 0 && System.currentTimeMillis() - exchangeStartTime > MAX_EXCHANGE_TIME) {
-            System.out.println("[ЗАВЕРШЕНИЕ] Превышено время обмена, завершаем с текущей загрузкой: "
+            LogHelper.warning(truck.getId(), "Превышено время обмена, завершаем с текущей загрузкой: "
                     + truck.getLoadPercentage() + "%");
             exchangeStartTime = -1; // Reset the timer
             notifyManager();
@@ -847,7 +835,7 @@ public class TruckAgent extends Agent {
                 addBehaviour(new WakerBehaviour(this, 1000) {
                     protected void onWake() {
                         if (!exchangeInProgress && !readyStatusSent) {
-                            System.out.println("[DEBUG] Грузовик перегружен на " + (loadPercentage - idealLoadPercentage) +
+                            LogHelper.exchange(truck.getId(), "Грузовик перегружен на " + (loadPercentage - idealLoadPercentage) +
                                     "%, инициируем обмен после задержки.");
                             requestExchange();
                         }
@@ -857,40 +845,39 @@ public class TruckAgent extends Agent {
             }
             else if (loadPercentage < idealLoadPercentage - 10) {
                 // Недогруженные грузовики инициируют обмен немедленно
-                System.out.println("[DEBUG] Грузовик недогружен на " + (idealLoadPercentage - loadPercentage) +
+                LogHelper.exchange(truck.getId(), "Грузовик недогружен на " + (idealLoadPercentage - loadPercentage) +
                         "%, инициируем обмен.");
                 requestExchange();
                 return;
             }
         } else {
-            System.out.println("[ЗАВЕРШЕНИЕ] Достигнут лимит попыток обмена, завершаем с текущей загрузкой: "
+            LogHelper.info(truck.getId(), "Достигнут лимит попыток обмена, завершаем с текущей загрузкой: "
                     + truck.getLoadPercentage() + "%");
         }
 
         // Если попытки обмена исчерпаны или разница небольшая, отправляем READY
-        System.out.println("[DEBUG] Завершаем попытки обмена и отправляем READY статус.");
-        notifyManager();
+        LogHelper.debug(truck.getId(), "Завершаем попытки обмена и отправляем READY статус.");        notifyManager();
     }
 
     private void requestExchange() {
         float loadPercentage = truck.getLoadPercentage();
         if (Math.abs(loadPercentage - idealLoadPercentage) <= 10) {
-            System.out.println("[ОБМЕН] " + getAID().getName() + " имеет оптимальную загрузку (" +
+            LogHelper.exchange(truck.getId(), "Имеет оптимальную загрузку (" +
                     loadPercentage + "%), обмен не требуется.");
             notifyManager(); // Отправляем READY статус, так как загрузка оптимальна
             return;
         }
         if (readyStatusSent) {
-            System.out.println("[ОБМЕН] " + getAID().getName() + " не может инициировать обмен - уже отправил READY статус.");
+            LogHelper.exchange(truck.getId(), "Не может инициировать обмен - уже отправил READY статус.");
             return;
         }
         if (exchangeAttempts >= MAX_EXCHANGE_ATTEMPTS) {
-            System.out.println("[ОБМЕН] " + getAID().getName() + " достиг лимита попыток обмена.");
+            LogHelper.exchange(truck.getId(), "Достиг лимита попыток обмена.");
             notifyManager();
             return;
         }
         if (exchangeInProgress) {
-            System.out.println("[ОБМЕН] Обмен уже идет, ждем ответа...");
+            LogHelper.exchange(truck.getId(), "Обмен уже идет, ждем ответа...");
             return;
         }
 
@@ -946,10 +933,9 @@ public class TruckAgent extends Agent {
         int delay = baseDelay + idDelay;
 
         // Логируем информацию о планировании обмена
-        System.out.println("[ОБМЕН] Грузовик " + getAID().getName() +
-                " запланировал обмен через " + (delay/1000.0) + " секунд (загрузка: " +
-                loadPercentage + "%, отклонение: " + loadDeviation +
-                "%, интервал: " + loadBucket + ", ID: " + truckId + ")");
+        LogHelper.exchange(truck.getId(), "Запланирован обмен через " + (delay/1000.0) +
+                " секунд (загрузка: " + loadPercentage + "%, отклонение: " + loadDeviation +
+                "%, интервал: " + loadBucket + ")");
 
         addBehaviour(new WakerBehaviour(this, delay) {
             protected void onWake() {
@@ -963,13 +949,13 @@ public class TruckAgent extends Agent {
                 float idealLoad = truck.getCapacity() * (idealLoadPercentage / 100);
                 float loadDiff = Math.abs(idealLoad - truck.getCurrentLoad());
 
-                System.out.println("[DEBUG] idealLoadPercentage: " + idealLoadPercentage);
-                System.out.println("[DEBUG] Идеальная загрузка: " + idealLoad);
-                System.out.println("[DEBUG] Текущая загрузка: " + truck.getCurrentLoad());
+                LogHelper.debug(truck.getId(), "idealLoadPercentage: " + idealLoadPercentage);
+                LogHelper.debug(truck.getId(), "Идеальная загрузка: " + idealLoad);
+                LogHelper.debug(truck.getId(), "Текущая загрузка: " + truck.getCurrentLoad());
 
                 // Перепроверка необходимости обмена
                 if (Math.abs(currentLoadPercentage - idealLoadPercentage) <= 10) {
-                    System.out.println("[ОБМЕН] " + getAID().getName() + " теперь имеет оптимальную загрузку (" +
+                    LogHelper.exchange(truck.getId(), "Теперь имеет оптимальную загрузку (" +
                             currentLoadPercentage + "%), обмен не требуется.");
                     notifyManager();
                     return;
@@ -978,7 +964,7 @@ public class TruckAgent extends Agent {
                 // Расчёт параметров обмена
                 desiredExchangeWeight = (loadDiff > truck.getCapacity() * 0.3f) ? loadDiff / 2 : loadDiff;
                 if (desiredExchangeWeight < 50) { // Минимальный порог для обмена
-                    System.out.println("[ОБМЕН] Слишком малый вес для обмена (" + desiredExchangeWeight + "), пропускаем.");
+                    LogHelper.exchange(truck.getId(), "Слишком малый вес для обмена (" + desiredExchangeWeight + "), пропускаем.");
                     notifyManager();
                     return;
                 }
@@ -990,7 +976,7 @@ public class TruckAgent extends Agent {
                 exchangeAttempts++;
                 exchangeStartTime = System.currentTimeMillis();
 
-                System.out.println("[ОБМЕН] Направление: " + direction +
+                LogHelper.exchange(truck.getId(), "Направление: " + direction +
                         " | Идеальная загрузка: " + idealLoad +
                         " | Текущая: " + truck.getCurrentLoad() +
                         " | Нужный вес обмена: " + desiredExchangeWeight);
@@ -999,7 +985,7 @@ public class TruckAgent extends Agent {
                 addBehaviour(new WakerBehaviour(myAgent, 40000) { // 40 seconds timeout
                     protected void onWake() {
                         if (exchangeInProgress) {
-                            System.out.println("[ОБМЕН] Таймаут обмена для " + getAID().getName());
+                            LogHelper.warning(truck.getId(), "Таймаут обмена!");
                             exchangeInProgress = false;
                             checkLoadingProgress();
                         }
@@ -1014,11 +1000,11 @@ public class TruckAgent extends Agent {
                 for (AID truckAID : activeOtherTrucks) {
                     request.addReceiver(truckAID);
                     receiverCount++;
-                    System.out.println("[ОБМЕН] Запрос отправлен активному грузовику: " + truckAID.getLocalName());
+                    LogHelper.debug(truck.getId(), "Запрос отправлен активному грузовику: " + truckAID.getLocalName());
                 }
 
                 if (receiverCount == 0) {
-                    System.out.println("[ОБМЕН] Нет доступных активных грузовиков для запроса обмена.");
+                    LogHelper.warning(truck.getId(), "Нет доступных активных грузовиков для запроса обмена.");
                     exchangeInProgress = false;
                     checkLoadingProgress();
                     return;
@@ -1028,14 +1014,14 @@ public class TruckAgent extends Agent {
                 request.setContent("EXCHANGE_REQUEST:" + desiredExchangeWeight + ":" + direction + ":" +
                         truck.getLoadPercentage());
                 send(request);
-                System.out.println("[ОБМЕН] Запрос отправлен " + receiverCount + " активным грузовикам");
+                LogHelper.exchange(truck.getId(), "Запрос отправлен " + receiverCount + " активным грузовикам");
             }
         });
     }
     private void notifyManager() {
         if (!readyStatusSent) {
             readyStatusSent = true;
-            System.out.println(getAID().getName() + " отправляет TRUCK_READY в менеджер.");
+            LogHelper.info(truck.getId(), "Отправка TRUCK_READY в менеджер.");
 
             ACLMessage ready = new ACLMessage(ACLMessage.REQUEST);
             ready.addReceiver(new AID("manager", AID.ISLOCALNAME));
@@ -1049,7 +1035,7 @@ public class TruckAgent extends Agent {
             statusUpdate.setContent("TRUCK_READY_STATUS:" + getAID().getLocalName());
             send(statusUpdate);
         } else {
-            System.out.println(getAID().getName() + " уже отправил TRUCK_READY, повторять не нужно.");
+            LogHelper.debug(truck.getId(), "Уже отправил TRUCK_READY, повторять не нужно.");
         }
     }
     private boolean hasTransferableCargo() {
@@ -1066,7 +1052,7 @@ public class TruckAgent extends Agent {
         accept.addReceiver(receiver);
         accept.setContent("ACCEPT_EXCHANGE");
         send(accept);
-        System.out.println("[DEBUG] Предложение принято, отправлен ACCEPT_PROPOSAL");
+        LogHelper.debug(truck.getId(), "Предложение принято, отправлен ACCEPT_PROPOSAL");
 
         // Определяем действие в зависимости от направления обмена
         if (direction.equals("NEED_LESS")) {
@@ -1075,21 +1061,20 @@ public class TruckAgent extends Agent {
         } else if (direction.equals("NEED_MORE")) {
             // Если мы хотим увеличить груз, то ждем пока другой грузовик отправит нам груз
             // Увеличиваем таймаут, так как теперь мы ждем, пока другой грузовик найдет и отправит груз
-            System.out.println("[ОБМЕН] Ожидаем получения груза от " + receiver.getLocalName());
+            LogHelper.exchange(truck.getId(), "Ожидание получения груза от " + receiver.getLocalName());
 
             // Таймер для завершения ожидания, если груз не придет
             addBehaviour(new WakerBehaviour(this, 30000) { // 30 секунд на ожидание
                 protected void onWake() {
                     if (exchangeInProgress) {
-                        System.out.println("[ОБМЕН] Истекло время ожидания груза от " + receiver.getLocalName());
+                        LogHelper.warning(truck.getId(), "Истекло время ожидания груза от " + receiver.getLocalName());
                         exchangeInProgress = false;
                         checkLoadingProgress();
                     }
                 }
             });
         } else {
-            System.out.println("[ОШИБКА] Неизвестное направление обмена: " + direction);
-            exchangeInProgress = false;
+            LogHelper.error(truck.getId(), "Неизвестное направление обмена: " + direction);            exchangeInProgress = false;
             checkLoadingProgress();
         }
     }
@@ -1100,7 +1085,7 @@ public class TruckAgent extends Agent {
             boolean compatible = checkCompatibility(cargoToTransfer, receiver);
 
             if (!compatible) {
-                System.out.println("[ОТКАЗ] Обмен отклонен: груз " + cargoToTransfer.getId() +
+                LogHelper.warning(truck.getId(), "Обмен отклонен: груз " + cargoToTransfer.getId() +
                         " (" + cargoToTransfer.getType() + ")" +
                         " несовместим с грузами в грузовике " + receiver.getLocalName());
                 exchangeInProgress = false;
@@ -1115,7 +1100,7 @@ public class TruckAgent extends Agent {
             float newDifference = Math.abs(newPercentage - idealLoadPercentage);
 
             if (newDifference >= currentDifference) {
-                System.out.println("[ОТКАЗ] Обмен отклонен: не улучшает загрузку (" +
+                LogHelper.warning(truck.getId(), "Обмен отклонен: не улучшает загрузку (" +
                         newPercentage + "% vs текущие " + truck.getLoadPercentage() + "%)");
                 exchangeInProgress = false;
                 checkLoadingProgress();
@@ -1133,7 +1118,7 @@ public class TruckAgent extends Agent {
                     truck.removeCargo(cargoToTransfer);  // Удаляем груз
                     transferMsg.setContentObject(cargoToTransfer);
                     send(transferMsg);
-                    System.out.println("[УСПЕХ] Передан груз " + cargoToTransfer.getId() +
+                    LogHelper.success(truck.getId(), "Передан груз " + cargoToTransfer.getId() +
                             " -> " + receiver.getLocalName());
 
                     // Установим таймер для автоматического восстановления груза
@@ -1145,12 +1130,11 @@ public class TruckAgent extends Agent {
                                 if (cargoToRestore != null) {
                                     if (truck.canAddCargo(cargoToRestore)) {
                                         truck.addCargo(cargoToRestore);
-                                        System.out.println("[ВОССТАНОВЛЕНИЕ] Груз " + cargoToRestore.getId() +
+                                        LogHelper.warning(truck.getId(), "Груз " + cargoToRestore.getId() +
                                                 " автоматически возвращен - не получено подтверждение");
                                     } else {
-                                        System.out.println("[ОШИБКА] Невозможно восстановить груз " + cargoToRestore.getId() +
-                                                " (тип: " + cargoToRestore.getType() + ") - стал несовместим с текущими грузами " +
-                                                truck.getLoadedCargos());
+                                        LogHelper.error(truck.getId(), "Невозможно восстановить груз " + cargoToRestore.getId() +
+                                                " (тип: " + cargoToRestore.getType() + ") - стал несовместим с текущими грузами");
                                         sendCargoToManager(cargoToRestore);
                                     }
                                 }
@@ -1164,35 +1148,33 @@ public class TruckAgent extends Agent {
                     // В случае ошибки возвращаем груз обратно
                     truck.addCargo(cargoToTransfer);
                     pendingTransfers.remove(receiver); // Убираем из ожидающих
-                    System.out.println("[ОШИБКА] Не удалось сериализовать груз: " + e.getMessage());
+                    LogHelper.error(truck.getId(), "Не удалось сериализовать груз: " + e.getMessage());
                     e.printStackTrace();
                     exchangeInProgress = false;
                     checkLoadingProgress();
                 }
 
             } else {
-                System.out.println("[ОШИБКА] Груз " + cargoToTransfer.getId() +
+                LogHelper.error(truck.getId(), "Груз " + cargoToTransfer.getId() +
                         " нельзя безопасно удалить - нарушится совместимость");
                 // Отменяем обмен
                 exchangeInProgress = false;
                 checkLoadingProgress();
             }
         } else {
-            System.out.println("[ОШИБКА] Не удалось найти подходящий груз для передачи");
+            LogHelper.error(truck.getId(), "Не удалось найти подходящий груз для передачи");
             exchangeInProgress = false;
             checkLoadingProgress();
         }
     }
     // Улучшенная проверка совместимости
-    // Улучшенная проверка совместимости
     private boolean checkCompatibility(Cargo cargo, AID receiverAID) {
 
-        System.out.println("[ПРОВЕРКА] Начинаем проверку совместимости груза " + cargo.getId() +
+        LogHelper.debug(truck.getId(), "Проверка совместимости груза " + cargo.getId() +
                 " (тип: " + cargo.getType() + ") с грузовиком " + receiverAID.getLocalName());
-
         // Проверяем наличие несовместимых типов для передаваемого груза
         if (cargo.getIncompatibleTypes().isEmpty()) {
-            System.out.println("[ПРОВЕРКА] Груз " + cargo.getId() + " (" + cargo.getType() +
+            LogHelper.debug(truck.getId(), "Груз " + cargo.getId() + " (" + cargo.getType() +
                     ") не имеет несовместимых типов, должен быть совместим со всеми грузами");
             return true;
         }
@@ -1217,20 +1199,20 @@ public class TruckAgent extends Agent {
 
             // Если нет типов в грузовике-получателе, значит совместимость обеспечена
             if (typesStr.isEmpty()) {
-                System.out.println("[ПРОВЕРКА] Грузовик " + receiverAID.getLocalName() + " пуст, совместимость обеспечена");
+                LogHelper.debug(truck.getId(), "Грузовик " + receiverAID.getLocalName() + " пуст, совместимость обеспечена");
                 return true;
             }
 
             String[] types = typesStr.split(",");
-            System.out.println("[ПРОВЕРКА] Типы в грузовике " + receiverAID.getLocalName() + ": " + Arrays.toString(types));
-            System.out.println("[ПРОВЕРКА] Несовместимые типы для груза " + cargo.getId() + ": " + cargo.getIncompatibleTypes());
+            LogHelper.debug(truck.getId(), "Типы в грузовике " + receiverAID.getLocalName() + ": " + Arrays.toString(types));
+            LogHelper.debug(truck.getId(), "Несовместимые типы для груза " + cargo.getId() + ": " + cargo.getIncompatibleTypes());
 
             // 1. Проверяем, есть ли в принимающем грузовике типы, которые несовместимы с передаваемым грузом
             for (String type : types) {
                 if (type.isEmpty()) continue;
 
                 if (cargo.getIncompatibleTypes().contains(type)) {
-                    System.out.println("[ПРОВЕРКА] Груз " + cargo.getId() +
+                    LogHelper.warning(truck.getId(), "Груз " + cargo.getId() +
                             " несовместим с типом " + type + " в грузовике " + receiverAID.getLocalName());
                     return false;
                 }
@@ -1252,14 +1234,14 @@ public class TruckAgent extends Agent {
 
             if (incompReply != null && incompReply.getContent() != null) {
                 String content = incompReply.getContent();
-                System.out.println("[ПРОВЕРКА] Получена информация о несовместимостях: " + content);
+                LogHelper.debug(truck.getId(), "Получена информация о несовместимостях: " + content);
 
                 if (content.startsWith("INCOMPATIBILITIES:")) {
                     String incompStr = content.substring("INCOMPATIBILITIES:".length());
 
                     // Если нет несовместимостей, разрешаем обмен
                     if (incompStr.isEmpty()) {
-                        System.out.println("[ПРОВЕРКА] Нет информации о несовместимостях в грузовике " +
+                        LogHelper.debug(truck.getId(), "Нет информации о несовместимостях в грузовике " +
                                 receiverAID.getLocalName() + ", считаем груз совместимым");
                         return true;
                     }
@@ -1276,7 +1258,7 @@ public class TruckAgent extends Agent {
 
                             for (String incompType : incompTypes) {
                                 if (incompType.equals(cargo.getType())) {
-                                    System.out.println("[ПРОВЕРКА] Тип " + cargo.getType() +
+                                    LogHelper.warning(truck.getId(), "Тип " + cargo.getType() +
                                             " несовместим с типом " + cargoType + " в грузовике " + receiverAID.getLocalName());
                                     return false;
                                 }
@@ -1285,45 +1267,20 @@ public class TruckAgent extends Agent {
                     }
                 }
             } else {
-                System.out.println("[ПРОВЕРКА] Не получен ответ о несовместимостях, но типы грузов совместимы");
+                LogHelper.debug(truck.getId(), "Не получен ответ о несовместимостях, но типы грузов совместимы");
                 return true;
             }
 
-            System.out.println("[ПРОВЕРКА] Груз " + cargo.getId() + " (" + cargo.getType() +
+            LogHelper.debug(truck.getId(), "Груз " + cargo.getId() + " (" + cargo.getType() +
                     ") совместим с грузами в грузовике " + receiverAID.getLocalName());
             return true;
         }
 
         // Если не получили ответ о типах грузов
-        System.out.println("[ПРОВЕРКА] Не получен ответ о типах грузов от " + receiverAID.getLocalName() +
+        LogHelper.warning(truck.getId(), "Не получен ответ о типах грузов от " + receiverAID.getLocalName() +
                 ", считаем несовместимым для безопасности");
         return false;
     }
 
-    // Добавьте метод для проверки вместимости грузовика-получателя
-    private boolean checkCapacity(float cargoWeight, AID receiverAID) {
-        ACLMessage request = new ACLMessage(ACLMessage.REQUEST);
-        request.addReceiver(receiverAID);
-        request.setContent("GET_FREE_CAPACITY");
-        send(request);
 
-        MessageTemplate mt = MessageTemplate.and(
-                MessageTemplate.MatchPerformative(ACLMessage.INFORM),
-                MessageTemplate.MatchSender(receiverAID)
-        );
-
-        ACLMessage reply = blockingReceive(mt, 5000);
-
-        if (reply != null && reply.getContent() != null &&
-                reply.getContent().startsWith("FREE_CAPACITY:")) {
-
-            float freeCapacity = Float.parseFloat(
-                    reply.getContent().substring("FREE_CAPACITY:".length()));
-
-            return cargoWeight <= freeCapacity;
-        }
-
-        // Если не получили ответ, считаем что нет места
-        return false;
-    }
 }

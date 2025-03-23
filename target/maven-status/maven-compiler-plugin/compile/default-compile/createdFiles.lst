@@ -13,6 +13,7 @@ agents\TruckAgent$2.class
 agents\TruckAgent$8.class
 model\Cargo.class
 model\LoadingConfiguration.class
+util\LogHelper.class
 client\ClientStartup.class
 agents\TruckAgent$16.class
 agents\TruckAgent$11.class
@@ -27,7 +28,6 @@ agents\LoadingManagerAgent$3.class
 agents\TruckAgent.class
 agents\TruckAgent$14.class
 agents\TruckAgent$12.class
-util\LogManager.class
 model\Truck.class
 agents\LoadingManagerAgent$1.class
 agents\TruckAgent$7$1$1.class
