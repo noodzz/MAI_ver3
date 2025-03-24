@@ -1,5 +1,6 @@
 package util;
 
+import agents.LoadingManagerAgent;
 import jade.core.AID;
 
 /**
@@ -39,6 +40,11 @@ public class LogHelper {
     public static final String EXCHANGE = WHITE;
     public static final String SUCCESS = GREEN + BOLD;
     public static final String FAILURE = RED + BOLD;
+
+    private static LoadingManagerAgent managerAgent = null;
+    public static void setManagerAgent(LoadingManagerAgent agent) {
+        managerAgent = agent;
+    }
 
     /**
      * Gets a color based on truck ID (to ensure consistent coloring)
@@ -90,7 +96,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void debug(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + DEBUG + "[DEBUG] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + DEBUG + "[DEBUG] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -99,7 +108,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void info(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + INFO + "[INFO] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + INFO + "[INFO] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -108,7 +120,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void warning(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + WARNING + "[WARN] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + WARNING + "[WARN] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -117,7 +132,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void error(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + ERROR + "[ERROR] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + ERROR + "[ERROR] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -126,7 +144,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void exchange(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + EXCHANGE + "[EXCHANGE] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + EXCHANGE + "[EXCHANGE] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -135,7 +156,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void success(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + SUCCESS + "[SUCCESS] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + SUCCESS + "[SUCCESS] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -144,7 +168,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void failure(int truckId, String message) {
-        System.out.println(formatTruckId(truckId) + FAILURE + "[FAILURE] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + FAILURE + "[FAILURE] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**
@@ -155,7 +182,10 @@ public class LogHelper {
      * @param message Message to log
      */
     public static void log(int truckId, String level, String tag, String message) {
-        System.out.println(formatTruckId(truckId) + level + "[" + tag + "] " + message + RESET);
+        String formattedMessage =(formatTruckId(truckId) + level + "[" + tag + "] " + message + RESET);
+        if (managerAgent != null) {
+            managerAgent.broadcastToConsole(formattedMessage);
+        }
     }
 
     /**

@@ -54,22 +54,6 @@ public class ServerMain {
             CargoPool cargoPool = CargoPool.getInstance();
             cargoPool.initializePool(config.getCargos());
             System.out.println("Пул грузов инициализирован с " + config.getCargos().size() + " грузами");
-            // Создание первой группы агентов-грузовиков на сервере
-            // (предполагается, что половину грузовиков запускаем на сервере)
-            int trucksOnServer = 0;
-
-
-            for (int i = 0; i < trucksOnServer; i++) {
-                Truck truck = config.getTrucks().get(i);
-                AgentController truckAgent = mainContainer.createNewAgent(
-                        "truck-" + truck.getId(),
-                        "agents.TruckAgent",
-                        new Object[]{truck, config.getIdealLoadPercentage()});
-                truckAgent.start();
-            }
-
-            // Сохраняем конфигурацию для клиентов
-            saveClientConfiguration(config, trucksOnServer);
 
             System.out.println("Сервер МАС запущен успешно на порту 1099.");
             System.out.println("Запустите клиентов для добавления агентов-грузовиков.");

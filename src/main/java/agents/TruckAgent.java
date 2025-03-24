@@ -762,6 +762,7 @@ public class TruckAgent extends Agent {
 
 
     private void processCargos(List<Cargo> availableCargos) {
+
         boolean cargoFound = false;
         processedCargoIds.clear();
         CargoPool cargoPool = CargoPool.getInstance();

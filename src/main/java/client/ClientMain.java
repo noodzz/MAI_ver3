@@ -26,18 +26,6 @@ public class ClientMain {
             }
             System.out.println("Подключение к серверу: " + serverIP);
 
-            // Загрузка конфигурации клиента
-            LoadingConfiguration config = loadClientConfiguration();
-            System.out.println("[DEBUG] Загружен idealLoadPercentage: " + config.getIdealLoadPercentage()); // Добавьте эту строку
-
-            if (config == null || config.getTrucks().isEmpty()) {
-                System.out.println("Ошибка: Не удалось загрузить конфигурацию клиента или нет грузовиков для запуска.");
-                return;
-            }
-
-            System.out.println("Загружено " + config.getTrucks().size() + " грузовиков из конфигурации.");
-
-
             // Запуск JADE Runtime
             Runtime rt = Runtime.instance();
 
@@ -51,44 +39,15 @@ public class ClientMain {
             // Создание периферийного контейнера
             System.out.println("Создание периферийного контейнера...");
             AgentContainer container = rt.createAgentContainer(profile);
-            // После загрузки конфигурации
-            CargoPool cargoPool = CargoPool.getInstance();
-            if (cargoPool.getAvailableCargos().isEmpty()) {
-                cargoPool.initializePool(config.getCargos());
-                System.out.println("Клиент: пул грузов инициализирован с " + config.getCargos().size() + " грузами");
-            }
-            // Создание агентов-грузовиков на клиенте
-            List<AID> allTruckAIDs = new ArrayList<>();
-            // In ClientMain.java, make sure AIDs are created with full information:
-            for (Truck truck : config.getTrucks()) {
-                String agentName = "truck-" + truck.getId();
-                AID aid = new AID(agentName, AID.ISLOCALNAME);
-                aid.addAddresses("http://" + serverIP + ":7778/acc");
-                allTruckAIDs.add(aid);
-            }
+            AgentController consoleAgent = container.createNewAgent(
+                    "console-" + System.currentTimeMillis(),
+                    "agents.ConsoleAgent",
+                    null);
+            consoleAgent.start();
 
-            // Создание агентов-грузовиков на клиенте
-            System.out.println("Запуск агентов-грузовиков на клиенте...");
-            for (Truck truck : config.getTrucks()) {
-                if (truck == null) {
-                    System.out.println("Ошибка: найден пустой грузовик.");
-                    continue;
-                }
-                String agentName = "truck-" + truck.getId();
-                System.out.println("Создание агента для грузовика: " + truck.getId());
+            System.out.println("Клиент подключился к серверу " + serverIP);
+            System.out.println("Запрос на начало процесса распределения отправлен");
 
-                // Передаем три параметра: грузовик, процент загрузки и список AID
-                AgentController truckAgent = container.createNewAgent(
-                        agentName,
-                        "agents.TruckAgent",
-                        new Object[]{
-                                truck,
-                                config.getIdealLoadPercentage(),
-                                new ArrayList<>(allTruckAIDs) // Копируем список
-                        });
-                truckAgent.start();
-                System.out.println("Запущен агент грузовика: truck-" + truck.getId());
-            }
         } catch (Exception e) {
             System.out.println("Ошибка при запуске клиента:");
             e.printStackTrace();

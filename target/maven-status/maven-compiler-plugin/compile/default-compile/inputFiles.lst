@@ -1,12 +1,13 @@
-C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\model\LoadingConfiguration.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\server\ServerStartup.java
-C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\util\NetworkHelper.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\client\ClientMain.java
-C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\client\ClientStartup.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\model\Truck.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\agents\LoadingManagerAgent.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\agents\TruckAgent.java
+C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\util\LogHelper.java
+C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\model\LoadingConfiguration.java
+C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\util\NetworkHelper.java
+C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\client\ClientStartup.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\model\Cargo.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\model\CargoPool.java
+C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\agents\ConsoleAgent.java
 C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\server\ServerMain.java
-C:\Users\silez\IdeaProjects\MAI_ver3\src\main\java\util\LogHelper.java

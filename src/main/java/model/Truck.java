@@ -40,14 +40,12 @@ public class Truck implements Serializable {
 
         // Check capacity
         if (getCurrentLoad() + cargo.getWeight() > capacity) {
-            System.out.println("[DEBUG] Груз " + cargo.getId() + " не помещается в грузовик " + id);
             return false;
         }
 
         // Check compatibility
         for (String loadedType : loadedCargoTypes) {
             if (cargo.getIncompatibleTypes().contains(loadedType)) {
-                System.out.println("[DEBUG] Груз " + cargo.getId() + " конфликтует с типом " + loadedType);
                 return false;
             }
         }

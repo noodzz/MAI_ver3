@@ -24,7 +24,8 @@ public class LoadingManagerAgent extends Agent {
     private Map<String, TruckReport> finalTruckReports = new HashMap<>();
     private boolean reportGenerated = false; // Флаг для отслеживания генерации отчета
     private boolean feasibilityCheckLogged = false; // Флаг для предотвращения повторных логов
-
+    private boolean distributionStarted = false;
+    private List<AID> consoleSubscribers = new ArrayList<>();
     // Inner class to store truck report data
     private static class TruckReport {
         int id;
@@ -68,7 +69,7 @@ public class LoadingManagerAgent extends Agent {
     @Override
     protected void setup() {
         System.out.println("Loading Manager Agent " + getAID().getName() + " is ready.");
-
+        LogHelper.setManagerAgent(this);
         Object[] args = getArguments();
         if (args != null && args.length > 0) {
             config = (LoadingConfiguration) args[0];
@@ -82,7 +83,48 @@ public class LoadingManagerAgent extends Agent {
             doDelete();
             return;
         }
+        addBehaviour(new CyclicBehaviour(this) {
+            public void action() {
+                MessageTemplate mt = MessageTemplate.or(
+                        MessageTemplate.and(
+                                MessageTemplate.MatchPerformative(ACLMessage.REQUEST),
+                                MessageTemplate.MatchContent("START_DISTRIBUTION")
+                        ),
+                        MessageTemplate.and(
+                                MessageTemplate.MatchPerformative(ACLMessage.SUBSCRIBE),
+                                MessageTemplate.MatchContent("CONSOLE_SUBSCRIBE")
+                        )
+                );
 
+                ACLMessage msg = myAgent.receive(mt);
+                if (msg != null) {
+                    if (msg.getPerformative() == ACLMessage.REQUEST) {
+                        // Запрос на начало распределения
+                        if (!distributionStarted) {
+                            distributionStarted = true;
+                            System.out.println("Получен запрос на начало распределения от " +
+                                    msg.getSender().getLocalName());
+
+                            // Запускаем процесс создания агентов-грузовиков
+                            startDistribution();
+                        } else {
+                            System.out.println("Игнорирую повторный запрос на распределение от " +
+                                    msg.getSender().getLocalName());
+                        }
+                    } else if (msg.getPerformative() == ACLMessage.SUBSCRIBE) {
+                        // Подписка на консольный вывод
+                        AID subscriber = msg.getSender();
+                        if (!consoleSubscribers.contains(subscriber)) {
+                            consoleSubscribers.add(subscriber);
+                            System.out.println("Добавлен новый подписчик на консоль: " +
+                                    subscriber.getLocalName());
+                        }
+                    }
+                } else {
+                    block();
+                }
+            }
+        });
         addBehaviour(new WakerBehaviour(this, 360000) { // 60 second timeout
             protected void onWake() {
                 System.out.println("Master timeout reached. Finalizing all operations...");
@@ -234,7 +276,16 @@ public class LoadingManagerAgent extends Agent {
             System.out.println("[Менеджер] Удалено невозможных грузов: " + removedCount);
         }
     }
+    public void broadcastToConsole(String message) {
+        if (consoleSubscribers.isEmpty()) return;
 
+        ACLMessage broadcast = new ACLMessage(ACLMessage.INFORM);
+        for (AID subscriber : consoleSubscribers) {
+            broadcast.addReceiver(subscriber);
+        }
+        broadcast.setContent("CONSOLE_OUTPUT:" + message);
+        send(broadcast);
+    }
     private void requestTruckReports() {
         System.out.println("Requesting status reports from all trucks...");
         reportGenerated = true; // Устанавливаем флаг, чтобы избежать повторной генерации
@@ -460,6 +511,43 @@ public class LoadingManagerAgent extends Agent {
                     doDelete();
                 }
             });
+        }
+    }
+    // Добавьте этот метод в класс LoadingManagerAgent
+    private void startDistribution() {
+        System.out.println("Начинаю процесс распределения грузов...");
+
+        try {
+            // Получаем контейнер, в котором выполняется менеджер
+            jade.wrapper.AgentContainer container = getContainerController();
+
+            // Создаем список AID для всех грузовиков
+            List<AID> allTruckAIDs = new ArrayList<>();
+            for (Truck truck : config.getTrucks()) {
+                String agentName = "truck-" + truck.getId();
+                allTruckAIDs.add(new AID(agentName, AID.ISLOCALNAME));
+            }
+
+            // Теперь создаем агентов
+            for (Truck truck : config.getTrucks()) {
+                String agentName = "truck-" + truck.getId();
+                jade.wrapper.AgentController agent = container.createNewAgent(
+                        agentName,
+                        "agents.TruckAgent",
+                        new Object[]{
+                                truck,
+                                config.getIdealLoadPercentage(),
+                                new ArrayList<>(allTruckAIDs)
+                        });
+                agent.start();
+                System.out.println("Создан и запущен агент-грузовик: " + agentName);
+            }
+
+            System.out.println("Все агенты-грузовики запущены, распределение начато");
+
+        } catch (Exception e) {
+            System.err.println("Ошибка при запуске агентов-грузовиков: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

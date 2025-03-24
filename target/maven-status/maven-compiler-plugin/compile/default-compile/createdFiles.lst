@@ -1,4 +1,5 @@
 agents\TruckAgent$15.class
+agents\ConsoleAgent.class
 agents\LoadingManagerAgent$TruckReport$CargoEntry.class
 agents\TruckAgent$10.class
 agents\TruckAgent$7$1.class
@@ -11,6 +12,7 @@ agents\LoadingManagerAgent$2.class
 util\NetworkHelper.class
 agents\TruckAgent$2.class
 agents\TruckAgent$8.class
+agents\ConsoleAgent$3.class
 model\Cargo.class
 model\LoadingConfiguration.class
 model\CargoPool.class
@@ -29,9 +31,12 @@ client\ClientMain.class
 agents\TruckAgent$6.class
 agents\LoadingManagerAgent$3.class
 agents\TruckAgent.class
+agents\ConsoleAgent$1.class
 agents\TruckAgent$14.class
 agents\TruckAgent$12.class
 agents\TruckAgent$18.class
+agents\LoadingManagerAgent$7.class
+agents\ConsoleAgent$2.class
 model\Truck.class
 agents\LoadingManagerAgent$1.class
 agents\TruckAgent$7$1$1.class
