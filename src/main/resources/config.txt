@@ -22,4 +22,5 @@
 14, glass, 350, food
 
 [SETTINGS]
+useDynamicIdealLoad=true
 idealLoadPercentage = 50

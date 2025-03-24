@@ -7,6 +7,7 @@ public class LoadingConfiguration implements Serializable {
     private List<Truck> trucks;
     private List<Cargo> cargos;
     private float idealLoadPercentage;
+    private boolean useDynamicIdealLoad;
 
     public List<Truck> getTrucks() {
         return trucks;
@@ -15,7 +16,13 @@ public class LoadingConfiguration implements Serializable {
     public void setTrucks(List<Truck> trucks) {
         this.trucks = trucks;
     }
+    public boolean isUseDynamicIdealLoad() {
+        return useDynamicIdealLoad;
+    }
 
+    public void setUseDynamicIdealLoad(boolean useDynamicIdealLoad) {
+        this.useDynamicIdealLoad = useDynamicIdealLoad;
+    }
     public List<Cargo> getCargos() {
         return cargos;
     }

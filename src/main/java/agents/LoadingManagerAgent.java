@@ -73,6 +73,22 @@ public class LoadingManagerAgent extends Agent {
         Object[] args = getArguments();
         if (args != null && args.length > 0) {
             config = (LoadingConfiguration) args[0];
+            if (config.isUseDynamicIdealLoad()) {
+                float totalTruckCapacity = 0f;
+                float totalCargoWeight = 0f;
+                for (Truck truck : config.getTrucks()) {
+                    totalTruckCapacity += truck.getCapacity();
+                }
+
+                // Sum up all cargo weights
+                for (Cargo cargo : config.getCargos()) {
+                    totalCargoWeight += cargo.getWeight();
+                }
+                float dynamicIdealPercentage = Math.min((totalCargoWeight / totalTruckCapacity) * 100, 100);
+                config.setIdealLoadPercentage(dynamicIdealPercentage);
+                System.out.println("Dynamic ideal load percentage calculated: " + dynamicIdealPercentage + "%");
+                System.out.println("Total truck capacity: " + totalTruckCapacity + ", Total cargo weight: " + totalCargoWeight);
+            }
             availableCargos = new ArrayList<>(config.getCargos());
             impossibleCargos.clear(); // Очищаем предыдущие данные
             checkCargoFeasibility();

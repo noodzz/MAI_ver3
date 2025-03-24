@@ -1,7 +1,7 @@
 TRUCK LOADING REPORT
 ===================
 
-Report generated at: Mon Mar 24 10:40:44 YEKT 2025
+Report generated at: Mon Mar 24 16:24:44 YEKT 2025
 
 Truck ID: 1
 Capacity: 1000.0
@@ -13,7 +13,27 @@ Cargos:
 ------------------
 Truck ID: 2
 Capacity: 2000.0
-Current Load: 970.0 (48.5%)
+Current Load: 980.0 (49.0%)
+Loaded Cargo Types: [electronics, building_materials, toys]
+Cargos: 
+  - Cargo 2 (Type: electronics, Weight: 200.0)
+  - Cargo 6 (Type: toys, Weight: 180.0)
+  - Cargo 11 (Type: building_materials, Weight: 600.0)
+
+------------------
+Truck ID: 3
+Capacity: 1500.0
+Current Load: 730.0 (48.666668%)
+Loaded Cargo Types: [clothes, food]
+Cargos: 
+  - Cargo 3 (Type: clothes, Weight: 150.0)
+  - Cargo 9 (Type: food, Weight: 280.0)
+  - Cargo 1 (Type: food, Weight: 300.0)
+
+------------------
+Truck ID: 4
+Capacity: 1800.0
+Current Load: 970.0 (53.888885%)
 Loaded Cargo Types: [electronics, glass, chemicals]
 Cargos: 
   - Cargo 4 (Type: chemicals, Weight: 400.0)
@@ -21,35 +41,15 @@ Cargos:
   - Cargo 14 (Type: glass, Weight: 350.0)
 
 ------------------
-Truck ID: 3
-Capacity: 1500.0
-Current Load: 750.0 (50.0%)
-Loaded Cargo Types: [building_materials, clothes]
-Cargos: 
-  - Cargo 3 (Type: clothes, Weight: 150.0)
-  - Cargo 11 (Type: building_materials, Weight: 600.0)
-
-------------------
-Truck ID: 4
-Capacity: 1800.0
-Current Load: 750.0 (41.666664%)
-Loaded Cargo Types: [electronics, paper, tools]
-Cargos: 
-  - Cargo 2 (Type: electronics, Weight: 200.0)
-  - Cargo 8 (Type: tools, Weight: 350.0)
-  - Cargo 13 (Type: paper, Weight: 200.0)
-
-------------------
 Truck ID: 5
 Capacity: 2500.0
-Current Load: 1130.0 (45.2%)
-Loaded Cargo Types: [books, toys, medicine, food]
+Current Load: 920.0 (36.8%)
+Loaded Cargo Types: [books, paper, medicine, tools]
 Cargos: 
   - Cargo 5 (Type: books, Weight: 250.0)
-  - Cargo 9 (Type: food, Weight: 280.0)
+  - Cargo 8 (Type: tools, Weight: 350.0)
+  - Cargo 13 (Type: paper, Weight: 200.0)
   - Cargo 12 (Type: medicine, Weight: 120.0)
-  - Cargo 6 (Type: toys, Weight: 180.0)
-  - Cargo 1 (Type: food, Weight: 300.0)
 
 ------------------
 SUMMARY
@@ -58,7 +58,7 @@ Total trucks: 5
 Total capacity: 8800.0
 Total load: 4100.0
 Overall loading percentage: 46,59%
-Ideal loading percentage: 50.0%
+Ideal loading percentage: 46.590908%
 
 Total processed cargos: 14
 Impossible cargos count: 0

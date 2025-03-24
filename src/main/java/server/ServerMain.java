@@ -86,7 +86,7 @@ public class ServerMain {
         List<Truck> trucks = new ArrayList<>();
         List<Cargo> cargos = new ArrayList<>();
         float idealLoadPercentage = 50.0f;
-
+        boolean useDynamicIdealLoad = false;
         try (InputStream inputStream = ServerMain.class.getClassLoader().getResourceAsStream(filename);
              BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
             String line;
@@ -128,8 +128,15 @@ public class ServerMain {
                     }
                 } else if (section.equals("SETTINGS")) {
                     String[] parts = line.split("=");
-                    if (parts.length == 2 && parts[0].trim().equals("idealLoadPercentage")) {
-                        idealLoadPercentage = Float.parseFloat(parts[1].trim());
+                    if (parts.length == 2) {
+                        String key = parts[0].trim();
+                        String value = parts[1].trim();
+
+                        if (key.equals("idealLoadPercentage")) {
+                            idealLoadPercentage = Float.parseFloat(value);
+                        } else if (key.equals("useDynamicIdealLoad")) {
+                            useDynamicIdealLoad = Boolean.parseBoolean(value);
+                        }
                     }
                 }
             }
@@ -137,6 +144,7 @@ public class ServerMain {
             config.setTrucks(trucks);
             config.setCargos(cargos);
             config.setIdealLoadPercentage(idealLoadPercentage);
+            config.setUseDynamicIdealLoad(useDynamicIdealLoad);
 
         } catch (IOException e) {
             e.printStackTrace();
