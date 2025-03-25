@@ -410,7 +410,7 @@ public class LoadingManagerAgent extends Agent {
                 String idsStr = line.substring(19);
                 if (!idsStr.isEmpty()) {
                     for (String idStr : idsStr.split(",")) {
-                        if (!idStr.isEmpty()) {
+                        if (!idStr.isEmpty() && idStr.matches("\\d+")) {
                             try {
                                 report.processedCargoIds.add(Integer.parseInt(idStr.trim()));
                             } catch (NumberFormatException e) {

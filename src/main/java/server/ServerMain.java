@@ -12,13 +12,27 @@ import model.LoadingConfiguration;
 import model.Truck;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class ServerMain {
+    private static final String DEFAULT_CONFIG_PATH = "config.txt";
+
     public static void main(String[] args) {
         try {
+            String configPath = DEFAULT_CONFIG_PATH;
+            for (int i = 0; i < args.length; i++) {
+                if (args[i].equals("--config") && i + 1 < args.length) {
+                    configPath = args[i + 1];
+                    i++; // Пропускаем следующий аргумент, так как он является значением
+                }
+            }
+            System.out.println("Использую файл конфигурации: " + configPath);
+
             // Чтение конфигурации из файла
-            LoadingConfiguration config = readConfiguration("config.txt");
+            LoadingConfiguration config = readConfiguration(configPath);
             if (config == null || config.getTrucks() == null || config.getCargos() == null) {
                 System.out.println("Ошибка: Конфигурация не загружена!");
                 return;
@@ -81,75 +95,101 @@ public class ServerMain {
         }
     }
 
-    private static LoadingConfiguration readConfiguration(String filename) {
+    private static LoadingConfiguration readConfiguration(String filePath) {
         LoadingConfiguration config = new LoadingConfiguration();
         List<Truck> trucks = new ArrayList<>();
         List<Cargo> cargos = new ArrayList<>();
         float idealLoadPercentage = 50.0f;
         boolean useDynamicIdealLoad = false;
-        try (InputStream inputStream = ServerMain.class.getClassLoader().getResourceAsStream(filename);
-             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-            String line;
-            String section = "";
 
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
+        Path path = Paths.get(filePath);
 
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue;
+        try {
+            if (Files.exists(path)) {
+                System.out.println("Чтение конфигурации из файла: " + path.toAbsolutePath());
+                try (BufferedReader reader = Files.newBufferedReader(path)) {
+                    parseConfigFile(reader, trucks, cargos, config);
                 }
-
-                if (line.startsWith("[") && line.endsWith("]")) {
-                    section = line.substring(1, line.length() - 1);
-                    continue;
-                }
-
-                if (section.equals("TRUCKS")) {
-                    String[] parts = line.split(",");
-                    if (parts.length >= 2) {
-                        int id = Integer.parseInt(parts[0].trim());
-                        float capacity = Float.parseFloat(parts[1].trim());
-                        trucks.add(new Truck(id, capacity));
+            } else {
+                // Если файл не найден в файловой системе, пробуем ресурсы класса (для обратной совместимости)
+                System.out.println("Файл не найден в файловой системе. Попытка загрузки из ресурсов: " + filePath);
+                try (InputStream inputStream = ServerMain.class.getClassLoader().getResourceAsStream(filePath)) {
+                    if (inputStream == null) {
+                        System.err.println("Ошибка: Файл конфигурации не найден ни в файловой системе, ни в ресурсах: " + filePath);
+                        return null;
                     }
-                } else if (section.equals("CARGOS")) {
-                    String[] parts = line.split(",");
-                    if (parts.length >= 3) {
-                        int id = Integer.parseInt(parts[0].trim());
-                        String type = parts[1].trim();
-                        float weight = Float.parseFloat(parts[2].trim());
-
-                        List<String> incompatibleTypes = new ArrayList<>();
-                        if (parts.length > 3) {
-                            String[] incompatible = parts[3].trim().split(";");
-                            incompatibleTypes.addAll(Arrays.asList(incompatible));
-                        }
-
-                        cargos.add(new Cargo(id, type, weight, incompatibleTypes));
-                    }
-                } else if (section.equals("SETTINGS")) {
-                    String[] parts = line.split("=");
-                    if (parts.length == 2) {
-                        String key = parts[0].trim();
-                        String value = parts[1].trim();
-
-                        if (key.equals("idealLoadPercentage")) {
-                            idealLoadPercentage = Float.parseFloat(value);
-                        } else if (key.equals("useDynamicIdealLoad")) {
-                            useDynamicIdealLoad = Boolean.parseBoolean(value);
-                        }
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                        parseConfigFile(reader, trucks, cargos, config);
                     }
                 }
             }
 
             config.setTrucks(trucks);
             config.setCargos(cargos);
-            config.setIdealLoadPercentage(idealLoadPercentage);
-            config.setUseDynamicIdealLoad(useDynamicIdealLoad);
 
         } catch (IOException e) {
+            System.err.println("Ошибка при чтении файла конфигурации: " + e.getMessage());
             e.printStackTrace();
+            return null;
         }
 
         return config;
+    }
+    private static void parseConfigFile(BufferedReader reader, List<Truck> trucks, List<Cargo> cargos, LoadingConfiguration config) throws IOException {
+        String line;
+        String section = "";
+        float idealLoadPercentage = 50.0f;
+        boolean useDynamicIdealLoad = false;
+
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+
+            if (line.startsWith("[") && line.endsWith("]")) {
+                section = line.substring(1, line.length() - 1);
+                continue;
+            }
+
+            if (section.equals("TRUCKS")) {
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    int id = Integer.parseInt(parts[0].trim());
+                    float capacity = Float.parseFloat(parts[1].trim());
+                    trucks.add(new Truck(id, capacity));
+                }
+            } else if (section.equals("CARGOS")) {
+                String[] parts = line.split(",");
+                if (parts.length >= 3) {
+                    int id = Integer.parseInt(parts[0].trim());
+                    String type = parts[1].trim();
+                    float weight = Float.parseFloat(parts[2].trim());
+
+                    List<String> incompatibleTypes = new ArrayList<>();
+                    if (parts.length > 3) {
+                        String[] incompatible = parts[3].trim().split(";");
+                        incompatibleTypes.addAll(Arrays.asList(incompatible));
+                    }
+
+                    cargos.add(new Cargo(id, type, weight, incompatibleTypes));
+                }
+            } else if (section.equals("SETTINGS")) {
+                String[] parts = line.split("=");
+                if (parts.length == 2) {
+                    String key = parts[0].trim();
+                    String value = parts[1].trim();
+
+                    if (key.equals("idealLoadPercentage")) {
+                        idealLoadPercentage = Float.parseFloat(value);
+                        config.setIdealLoadPercentage(idealLoadPercentage);
+                    } else if (key.equals("useDynamicIdealLoad")) {
+                        useDynamicIdealLoad = Boolean.parseBoolean(value);
+                        config.setUseDynamicIdealLoad(useDynamicIdealLoad);
+                    }
+                }
+            }
+        }
     }
 }

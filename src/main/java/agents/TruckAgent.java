@@ -1347,7 +1347,6 @@ public class TruckAgent extends Agent {
         sb.append("LOAD_PERCENTAGE:").append(truck.getLoadPercentage()).append("\n");
         sb.append("PROCESSED_CARGO_IDS:").append(String.join(",",
                 processedCargoIds.stream().map(String::valueOf).collect(Collectors.toList()))).append("\n");
-
         sb.append("IMPOSSIBLE_CARGO_IDS:").append(String.join(",",
                 impossibleCargoIds.stream().map(String::valueOf).collect(Collectors.toList()))).append("\n");
 
